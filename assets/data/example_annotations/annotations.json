@@ -1,0 +1,9 @@
+[
+    {"name": "Blood", "filename": "annotation_Blood.json",
+     "children": [
+         {"name": "B-cells", "filename": "annotation_B-cells.json"},
+         {"name": "CD4+ T-cells", "filename": "annotation_CD4+_T-cells.json"}
+     ]
+    },
+    {"name": "Brain", "filename": "annotation_Brain.json"}
+]
