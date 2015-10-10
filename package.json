@@ -9,7 +9,9 @@
     "radium": "^0.14.1",
     "react": "^0.13.3",
     "react-router": "^1.0.0-rc1",
-    "reactify": "^1.1.1"
+    "reactify": "^1.1.1",
+    "restify": "^4.0.3",
+    "superagent": "^1.4.0"
   },
   "devDependencies": {},
   "scripts": {

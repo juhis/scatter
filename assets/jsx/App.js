@@ -55,12 +55,7 @@ var styles = {
 }
 
 var message = _.sample([
-    'VISUALIZING',
-    'DOING MATH',
-    'PREPARING PARTICLES',
-    'CALCULATING STUFF',
-    'WARMING UP PIXELS',
-    'CONVERTING NUMBERS TO COLOR INTENSITIES'
+    'LOADING VISUALIZATION',
 ])
 
 var Arrow = Radium(React.createClass({
@@ -139,7 +134,7 @@ var ScatterApp = Radium(React.createClass({
                 setTimeout(function() { // timeout to allow state update before scatter initialization
                     var scatterWidth = window.innerWidth - ((this.refs.menu && this.refs.menu.getDOMNode().offsetWidth) || 100)
                     var scatterHeight = window.innerHeight
-                    scatter.initialize(domNode, scatterWidth, scatterHeight, this.state.pointData[hashIndex['x']], this.state.pointData[hashIndex['y']], this.state.pointData[hashIndex['z']])
+                    scatter.initialize(domNode, this, scatterWidth, scatterHeight, this.state.pointData[hashIndex['x']], this.state.pointData[hashIndex['y']], this.state.pointData[hashIndex['z']])
                     this.setState({
                         isInitialized: true
                     })
@@ -180,21 +175,26 @@ var ScatterApp = Radium(React.createClass({
             }
         })
     },
+
+    setAnnotationByName: function(name) {
+	this.setAnnotation(this.state.annotations[name.toLowerCase()])
+    },
     
     setAnnotation: function(item) {
-        
+
         var that = this
         if (!item) {
             scatter.setAnnotations(null)
         } else {
-            if (this.state.annotations[item.name]) {
-                scatter.setAnnotations(this.state.annotations[item.name])
+	    var lcase = item.name.toLowerCase()
+            if (this.state.annotations[lcase]) {
+                scatter.setAnnotations(this.state.annotations[lcase])
             } else {
                 d3.json(config.annotationDir + item.filename, function(err, data) {
                     if (err) console.error(err)
                     else {
                         scatter.setAnnotations(data)
-                        that.state.annotations[item.name] = data
+                        that.state.annotations[lcase] = data
                         that.setState({
                             annotations: that.state.annotations
                         })
@@ -282,7 +282,7 @@ var ScatterApp = Radium(React.createClass({
                         key={child.name}
                         style={[styles.annotationItem, styles.annotationItemChild, dynamicStyle]}
                         onClick={this.onAnnotationClick.bind(null, child, true)}>
-                            {child.name.toUpperCase()}
+                            {child.name.toUpperCase() + (!!child.numAnnotated ? ' (' + child.numAnnotated + ')' : '')}
                         </div>
                     )
                 }, this)
@@ -297,7 +297,7 @@ var ScatterApp = Radium(React.createClass({
             return (
                     <div key={item.name} >
                     <div style={[styles.annotationItem, dynamicStyle]} onClick={this.onAnnotationClick.bind(null, item, false)}>
-                    {item.name.toUpperCase()}
+                    {item.name.toUpperCase() + (!!item.numAnnotated ? ' (' + item.numAnnotated + ')' : '')}
                 </div>
                     {childItems}
                 </div>

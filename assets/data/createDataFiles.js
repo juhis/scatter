@@ -12,6 +12,7 @@ var filePrefix = process.argv[3] || 'PC'
 var pcData = []
 var lineNum = 0
 
+var samples = {}
 fs.createReadStream(process.argv[2])
     .pipe(splitter())
     .on('data', function(line) {

@@ -1,19 +1,28 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"/Users/juhis/Projects/scatter/assets/js/scatter.js":[function(require,module,exports){
 'use strict'
 
+var async = require('async')
+var superagent = require('superagent')
 var config = require('../../config/config.js')
 
+var react
 var scene, renderer
 var camera, projectionCameras, cameraControls
+var isAnimating = false, isRecording = false, animationId, savedFrames = []
+var targetHSL = {h: config.hueAnnotated, s: config.saturationAnnotated, l: 1}
+var targetPointSize = {size: config.defaultPointSize}
+var prevTargetHSL = {h: config.hueAnnotated, s: config.saturationAnnotated, l: 0.5}
+var prevTargetPointSize = {size: config.defaultPointSizeAnnotated}
+
 var effectController, stats
 var attributes, uniforms, shaderMaterial
 
-var scale = 1000
+var scale = 10
 var colorAnnotated = new THREE.Color().setHSL(config.hueAnnotated, config.saturationAnnotated, config.lightnessAnnotated)
 var colorNotAnnotated = new THREE.Color().setHSL(config.hueNotAnnotated, config.saturationNotAnnotated, config.lightnessNotAnnotated)
 
 var pointCloud, axes, labels
-var destinations = [], annotations = [], annotationType = null, customValue = []
+var destinations = [], annotations = [], prevAnnotations = [], annotationType = null, customValue = []
 var clock = new THREE.Clock()
 
 function printPerformance() {
@@ -31,28 +40,28 @@ function drawTexts() {
     labels = new THREE.Object3D()
     var geo, text
     var mat = new THREE.MeshBasicMaterial({color: 0xffffff})
-    var textSize = 150
+    var textSize = 0.1 * scale
 
     // XY plane
     geo = new THREE.TextGeometry('X', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
-    text.position.set(75, -textSize - 75, -scale * scale / 2)
+    text.position.set(textSize / 2, -1.5 * textSize, -1000 * scale)
     labels.add(text)
     geo = new THREE.TextGeometry('Y', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
-    text.position.set(-textSize - 25, 75, -scale * scale / 2)
+    text.position.set(-1.2 * textSize, textSize / 2, -1000 * scale)
     labels.add(text)
 
     // XZ plane
     geo = new THREE.TextGeometry('X', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
     text.rotation.x = Math.PI / 2
-    text.position.set(75, -scale * scale / 2, -textSize - 75)
+    text.position.set(textSize / 2, -1000 * scale, -1.5 * textSize)
     labels.add(text)
     geo = new THREE.TextGeometry('Z', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
     text.rotation.x = Math.PI / 2
-    text.position.set(-textSize - 25, scale * scale / 2, 75)
+    text.position.set(-1.2 * textSize, -1000 * scale, textSize / 2)
     labels.add(text)
 
     // YZ plane
@@ -60,13 +69,13 @@ function drawTexts() {
     text = new THREE.Mesh(geo, mat)
     text.rotation.z = Math.PI / 2
     text.rotation.y = Math.PI / 2
-    text.position.set(scale * scale / 2, 75, -textSize - 75)
+    text.position.set(-1000 * scale, -1.2 * textSize, textSize / 2)
     labels.add(text)
     geo = new THREE.TextGeometry('Z', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
     text.rotation.z = Math.PI / 2
     text.rotation.y = Math.PI / 2
-    text.position.set(scale * scale / 2, -textSize - 25, 75)
+    text.position.set(-1000 * scale, textSize / 2, -1.5 * textSize)
     labels.add(text)
 
     scene.add(labels)
@@ -77,6 +86,7 @@ function drawAxes() {
     axes = new THREE.Object3D()
     var axisLength = scale / 4
     var axisThickness = scale / 50
+    var axisThickness1 = scale / 500
     var mat, geo, axis
     
     mat = new THREE.MeshBasicMaterial({color: 0x000000})
@@ -86,13 +96,13 @@ function drawAxes() {
 
     // X
     mat = new THREE.MeshBasicMaterial({color: 0xff3c00})
-    geo = new THREE.CylinderGeometry(axisThickness, 1, axisLength, 32, 128, false)
+    geo = new THREE.CylinderGeometry(axisThickness, axisThickness1, axisLength, 32, 128, false)
     var axis = new THREE.Mesh(geo, mat)
     axis.rotation.z = Math.PI / 2
     axis.position.x = axisLength / 2
     axes.add(axis)
     mat = new THREE.MeshBasicMaterial({color: 0xff3c00})
-    geo = new THREE.CylinderGeometry(axisThickness, 1, axisLength, 32, 128, false)
+    geo = new THREE.CylinderGeometry(axisThickness, axisThickness1, axisLength, 32, 128, false)
     var axis = new THREE.Mesh(geo, mat)
     axis.rotation.z = -Math.PI / 2
     axis.position.x = -axisLength / 2
@@ -100,26 +110,26 @@ function drawAxes() {
 
     // Y
     mat = new THREE.MeshBasicMaterial({color: 0xa0d200})
-    geo = new THREE.CylinderGeometry(axisThickness, 1, axisLength, 32, 128, false)
+    geo = new THREE.CylinderGeometry(axisThickness, axisThickness1, axisLength, 32, 128, false)
     var axis = new THREE.Mesh(geo, mat)
     axis.rotation.z = Math.PI
     axis.position.y = axisLength / 2
     axes.add(axis)
     mat = new THREE.MeshBasicMaterial({color: 0xa0d200})
-    geo = new THREE.CylinderGeometry(axisThickness, 1, axisLength, 32, 128, false)
+    geo = new THREE.CylinderGeometry(axisThickness, axisThickness1, axisLength, 32, 128, false)
     var axis = new THREE.Mesh(geo, mat)
     axis.position.y = -axisLength / 2
     axes.add(axis)
 
     // Z
     mat = new THREE.MeshBasicMaterial({color: 0x00a0d2})
-    geo = new THREE.CylinderGeometry(axisThickness, 1, axisLength, 32, 128, false)
+    geo = new THREE.CylinderGeometry(axisThickness, axisThickness1, axisLength, 32, 128, false)
     var axis = new THREE.Mesh(geo, mat)
     axis.rotation.x = -Math.PI / 2
     axis.position.z = axisLength / 2
     axes.add(axis)
     mat = new THREE.MeshBasicMaterial({color: 0x00a0d2})
-    geo = new THREE.CylinderGeometry(axisThickness, 1, axisLength, 32, 128, false)
+    geo = new THREE.CylinderGeometry(axisThickness, axisThickness1, axisLength, 32, 128, false)
     var axis = new THREE.Mesh(geo, mat)
     axis.rotation.x = Math.PI / 2
     axis.position.z = -axisLength / 2
@@ -140,9 +150,9 @@ function fillScene(dataX, dataY, dataZ) {
     geometry.colors = []
     for (var i = 0; i < dataX.length; i++) {
 	var vertex = new THREE.Vector3()
-        vertex.x = 2 * scale * (dataX[i] / 65536 - 0.5)
-        vertex.y = 2 * scale * (dataY[i] / 65536 - 0.5)
-        vertex.z = 2 * scale * (dataZ[i] / 65536 - 0.5)
+        vertex.x = 2 * scale * (dataX[i] / 65535 - 0.5)
+        vertex.y = 2 * scale * (dataY[i] / 65535 - 0.5)
+        vertex.z = 2 * scale * (dataZ[i] / 65535 - 0.5)
 	geometry.vertices.push(vertex)
         attributes.size.value.push(config.defaultPointSize)
         attributes.customColor.value.push(colorNotAnnotated)
@@ -162,7 +172,7 @@ function init(width, height) {
     scene = new THREE.Scene()
 
     // RENDERER
-    renderer = new THREE.WebGLRenderer({antialias: true})
+    renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true})
     renderer.gammaInput = true
     renderer.gammaOutput = true
     renderer.setPixelRatio(window.devicePixelRatio)
@@ -171,16 +181,16 @@ function init(width, height) {
 
     // CAMERAS
     
-    camera = new THREE.PerspectiveCamera(45, width / (2/3 * height), 2, 200000)
+    camera = new THREE.PerspectiveCamera(45, width / (2/3 * height), 2, 100 * scale)
     camera.position.set(3 * scale, 3 * scale, 3 * scale)
 
     projectionCameras = []
-    var maxScale = width > height ? width / height : height / width
+    var aspectRatio = width > height ? width / height : height / width
     for (var i = 0; i < 3; i++) {
         var cam = new THREE.OrthographicCamera(
-                -1.2 * maxScale * scale, 1.2 * maxScale * scale, // lr
-            1.2 * maxScale * scale / (width / height), -1.2 * maxScale * scale / (width / height), // tb
-                -maxScale * scale * scale, maxScale * scale * scale // nf
+                -1.2 * aspectRatio * scale, 1.2 * aspectRatio * scale, // lr
+            1.2 * aspectRatio * scale / (width / height), -1.2 * aspectRatio * scale / (width / height), // tb
+                -aspectRatio * scale * 2000, aspectRatio * scale * 2000 // nf
         )
         if (i === 0) {
             cam.up.set(0, 1, 0)
@@ -193,7 +203,7 @@ function init(width, height) {
         }
         projectionCameras.push(cam)
     }
-
+    
     // CONTROLS
     cameraControls = new THREE.OrbitControls(camera, renderer.domElement)
     cameraControls.noPan = true
@@ -250,6 +260,9 @@ function setupGUI() {
         lightnessNotAnnotated: colorNotAnnotated.getHSL().l,
         opacity: config.defaultOpacity,
         transitionSpeed: config.defaultTransitionSpeed,
+        animationSpeed: config.defaultAnimationSpeed,
+	showFPS: false,
+	showProjections: false,
         showAxes: false,
         showLabels: false,
         depthTest: false,
@@ -268,10 +281,14 @@ function setupGUI() {
     folder.add(effectController, 'hueNotAnnotated', 0, 1).name('HueNotAnnotated')
     folder.add(effectController, 'saturationNotAnnotated', 0, 1).name('SaturationNotAnnotated')
     folder.add(effectController, 'lightnessNotAnnotated', 0, 1).name('LightnessNotAnnotated')
-    folder = gui.addFolder('Other')
-    folder.add(effectController, 'transitionSpeed', 1, 500).name('TransitionSpeed')
+    folder = gui.addFolder('Show')
+    folder.add(effectController, 'showProjections').name('ShowProjections')
     folder.add(effectController, 'showAxes').name('ShowAxes')
     folder.add(effectController, 'showLabels').name('ShowLabels')
+    folder.add(effectController, 'showFPS').name('ShowFPS')
+    folder = gui.addFolder('Other')
+    folder.add(effectController, 'transitionSpeed', 1, 100).name('TransitionSpeed')
+    folder.add(effectController, 'animationSpeed', 1, 100).name('AnimationSpeed')
     folder.add(effectController, 'depthTest').name('DepthTest')
     folder.add(effectController, 'additiveBlending').name('AdditiveBlending')
 }
@@ -287,8 +304,6 @@ function addToDOM(domElement) {
     var w = window.innerWidth - ((document.getElementById('menu') && document.getElementById('menu').offsetWidth) || 100)
     var h = window.innerHeight
     renderer.setSize(w, h)
-    //camera.aspect = w/h
-    //camera.updateProjectionMatrix()
 
     stats = new Stats()
     stats.domElement.style.position = 'absolute'
@@ -298,67 +313,85 @@ function addToDOM(domElement) {
 }
 
 function animate() {
-    window.requestAnimationFrame(animate)
-    render()
+    if (isRecording && isAnimating) {
+	saveFrame(function() {
+	    window.requestAnimationFrame(animate)
+	    render()
+	})
+    } else {
+	window.requestAnimationFrame(animate)
+	render()
+    }
 }
 
 function render() {
+
+    // LPT: put TWEEN.update as the first thing in render to avoid jerky movement
+    TWEEN.update()
 
     var delta = clock.getDelta()
     cameraControls.update(delta)
     stats.update()
     
     uniforms.opacity.value = effectController.opacity
-    colorAnnotated = new THREE.Color().setHSL(effectController.hueAnnotated, effectController.saturationAnnotated, effectController.lightnessAnnotated)
-    colorNotAnnotated = new THREE.Color().setHSL(effectController.hueNotAnnotated, effectController.saturationNotAnnotated, effectController.lightnessNotAnnotated)
     var hsl = colorAnnotated.getHSL()
-    
+
+    if (!isAnimating) {
+	colorAnnotated = new THREE.Color().setHSL(effectController.hueAnnotated, effectController.saturationAnnotated, effectController.lightnessAnnotated)
+    }
+    colorNotAnnotated = new THREE.Color().setHSL(effectController.hueNotAnnotated, effectController.saturationNotAnnotated, effectController.lightnessNotAnnotated)
+
+    var targetHSLColor = new THREE.Color().setHSL(targetHSL.h, targetHSL.s, targetHSL.l)
+    var prevTargetHSLColor = new THREE.Color().setHSL(prevTargetHSL.h, prevTargetHSL.s, prevTargetHSL.l)
     for (var i = 0; i < pointCloud.geometry.vertices.length; i++) {
 
         var v = pointCloud.geometry.vertices[i]
-        if (annotations) {
-            if (annotationType == 'continuous') {
-                attributes.size.value[i] = effectController.pointSize
+        if (annotations || prevAnnotations) {
+            if (annotations && annotationType == 'continuous') {
                 var h = hsl.h + customValue[i]
                 attributes.customColor.value[i] = new THREE.Color().setHSL(h, hsl.s, hsl.l)
-            } else if (annotations[i] === 1) {
-                attributes.size.value[i] = effectController.pointSizeAnnotated
-                attributes.customColor.value[i] = colorAnnotated
-            } else {
                 attributes.size.value[i] = effectController.pointSize
+            } else if (annotations && annotations[i] === 1) {
+		attributes.customColor.value[i] = isAnimating ? targetHSLColor : colorAnnotated
+		attributes.size.value[i] = isAnimating ? targetPointSize.size : effectController.pointSizeAnnotated
+            } else if (isAnimating && prevAnnotations && prevAnnotations[i] === 1) {
+		attributes.customColor.value[i] = prevTargetHSLColor
+		attributes.size.value[i] = prevTargetPointSize.size
+	    } else {
                 attributes.customColor.value[i] = colorNotAnnotated
+                attributes.size.value[i] = effectController.pointSize
             }
         } else {
-            attributes.size.value[i] = effectController.pointSize
             attributes.customColor.value[i] = colorNotAnnotated
+            attributes.size.value[i] = effectController.pointSize
         }
 
         if (destinations[i] && destinations[i].x != undefined) {
             var distX = destinations[i].x - v.x
-            if (Math.abs(distX) > scale / 75) {
-                v.x += distX / scale * effectController.transitionSpeed
+            if (Math.abs(distX) > 0.1) {
+                v.x += distX / 1000 * effectController.transitionSpeed * 3
             } else {
                 v.x = destinations[i].x
             }
         }
         if (destinations[i] && destinations[i].y != undefined) {
             var distY = destinations[i].y - v.y
-            if (Math.abs(distY) > scale / 75) {
-                v.y += distY / scale * effectController.transitionSpeed
+            if (Math.abs(distY) > 0.1) {
+                v.y += distY / 1000 * effectController.transitionSpeed * 3
             } else {
                 v.y = destinations[i].y
             }
         }
         if (destinations[i] && destinations[i].z != undefined) {
             var distZ = destinations[i].z - v.z
-            if (Math.abs(distZ) > scale / 75) {
-                v.z += distZ / scale * effectController.transitionSpeed
+            if (Math.abs(distZ) > 0.1) {
+                v.z += distZ / 1000 * effectController.transitionSpeed * 3
             } else {
                 v.z = destinations[i].z
             }
         }
     }
-    
+
     pointCloud.geometry.verticesNeedUpdate = true
     attributes.size.needsUpdate = true
     attributes.customColor.needsUpdate = true
@@ -367,34 +400,237 @@ function render() {
     shaderMaterial.depthTest = effectController.depthTest
     axes.visible = effectController.showAxes
     labels.visible = effectController.showLabels
+    stats.domElement.style.visibility = effectController.showFPS ? 'visible' : 'hidden'
 
+    // cameras
     renderer.clear()
+    if (effectController.showProjections) {
+	for (var i = 0; i < 3; i++) {
+            var cam = projectionCameras[i]
+            if (i === 1) {
+		cam.position.y = -1
+            }
+            if (i === 2) {
+		cam.position.x = 1
+            }
+            cam.lookAt(cameraControls.target)
+            renderer.setViewport(i * 1 / 3 * renderer.domElement.offsetWidth, 0, 1 / 3 * renderer.domElement.offsetWidth, 1 / 3 * renderer.domElement.offsetHeight)
+            renderer.render(scene, cam)
+	}
+	camera.aspect = renderer.domElement.offsetWidth / (2 / 3 * renderer.domElement.offsetHeight)
+	camera.updateProjectionMatrix()
+	renderer.setViewport(0, 1 / 3 * renderer.domElement.offsetHeight, renderer.domElement.offsetWidth, 2 / 3 * renderer.domElement.offsetHeight)
+	renderer.render(scene, camera)
+    } else {
+	camera.aspect = renderer.domElement.offsetWidth / renderer.domElement.offsetHeight
+	camera.updateProjectionMatrix()
+	renderer.setViewport(0, 0, renderer.domElement.offsetWidth, renderer.domElement.offsetHeight)
+	renderer.render(scene, camera)
+    }
+}
 
-    // main cam
-    //renderer.setViewport(0, 1 / 3 * canvasHeight, canvasWidth, 2 / 3 * canvasHeight)
-    renderer.setViewport(0, 1 / 3 * renderer.domElement.offsetHeight, renderer.domElement.offsetWidth, 2 / 3 * renderer.domElement.offsetHeight)
-    renderer.render(scene, camera)
+function startAnimation(splines, tweenPos, tweenAnnotationNames, record) {
 
-    // projection cams
-    for (var i = 0; i < 3; i++) {
-        var cam = projectionCameras[i]
-        if (i === 1) {
-            cam.position.y = -1
-        }
-        if (i === 2) {
-            cam.position.x = 1
-        }
-        cam.lookAt(cameraControls.target)
-        renderer.setViewport(i * 1 / 3 * renderer.domElement.offsetWidth, 0, 1 / 3 * renderer.domElement.offsetWidth, 1 / 3 * renderer.domElement.offsetHeight)
-        renderer.render(scene, cam)
+    annotations = null
+    prevAnnotations= null
+    
+    var tweenLength = 1500
+    var tweenLength2 = 1500
+    var tweenTime = []
+    var tweens = []
+    for (var i = 0; i < splines.length - 1; i++) { // tween along splines, save last one
+	tweenTime.push({t: 0})
+	var tween = new TWEEN.Tween(tweenTime[i])
+	    .to({t: 1}, tweenLength)
+	    .easing(TWEEN.Easing.Quadratic.InOut)
+	    .onUpdate(function(i) {
+		var point = splines[i].getPoint(tweenTime[i].t)
+		// if (point.x > -40) {
+		camera.position.set(point.x, point.y, point.z)
+		// }
+	    }.bind(null, i))
+	tweens.push(tween)
+    }
+
+    var tweenTargetHSL = new TWEEN.Tween(targetHSL)
+	.to({l: 0.5}, tweenLength2)
+	.easing(TWEEN.Easing.Quadratic.InOut)
+	.onComplete(function() {
+	    targetHSL.l = 1
+	})
+    var tweenTargetPointSize = new TWEEN.Tween(targetPointSize)
+	.to({size: config.defaultPointSizeAnnotated}, tweenLength2)
+	.easing(TWEEN.Easing.Quadratic.InOut)
+	.onComplete(function() {
+	    targetPointSize.size = config.defaultPointSize
+	})
+    var tweenPrevTargetHSL = new TWEEN.Tween(prevTargetHSL)
+	.to({l: 1}, tweenLength2)
+	.easing(TWEEN.Easing.Quadratic.InOut)
+	.onComplete(function() {
+	    prevTargetHSL.l = 0.5
+	})
+    var tweenPrevTargetPointSize = new TWEEN.Tween(prevTargetPointSize)
+	.to({size: config.defaultPointSize}, tweenLength2)
+	.easing(TWEEN.Easing.Quadratic.InOut)
+	.onComplete(function() {
+	    prevTargetPointSize.size = config.defaultPointSizeAnnotated
+	})
+
+    for (var i = 0; i < tweenAnnotationNames.length; i++) {
+	tweens.push(new TWEEN.Tween(camera.position)
+		    .to(tweenPos[i], tweenLength2)
+		    .easing(TWEEN.Easing.Quadratic.InOut)
+		    .onStart(function(j) {
+			react.setAnnotationByName(tweenAnnotationNames[j])
+			tweenTargetHSL.start()
+			tweenTargetPointSize.start()
+		    }.bind(this, i))
+		    .onComplete(function(j) {
+			prevAnnotations = annotations && annotations.slice(0)
+			annotations = null
+			if (j == tweenAnnotationNames.length - 1) {
+			    tweenPrevTargetHSL.onComplete(function() {})
+			    tweenPrevTargetPointSize.onComplete(function() {})
+			}
+			tweenPrevTargetHSL.start()
+			tweenPrevTargetPointSize.start()
+		    }.bind(this, i)))
+    }
+    
+    tweens.push(new TWEEN.Tween({t: 0})
+    		.to({t: 1}, tweenLength)
+		.onUpdate(function() {
+		    var point = splines[splines.length - 1].getPoint(this.t)
+		    camera.position.set(point.x, point.y, point.z)
+		}))
+
+    for (var i = 0; i < tweens.length; i++) {
+	if (i < tweens.length - 1) {
+	    tweens[i].chain(tweens[i+1])
+	} else {
+	    tweens[i]
+		.onComplete(function() {
+		    isAnimating = false
+		    if (isRecording) {
+			isRecording = false
+			uploadSavedFrames(animationId, function(err) {
+			    if (err) {
+				window.alert('could not upload png files to server: ' + err)
+			    } else {
+				window.alert(savedFrames.length + ' png files uploaded to server with name ' + animationId)
+				savedFrames = []
+			    }
+			})
+		    }
+		})
+	}
+    }
+    tweens[0].start()
+    isAnimating = true
+    isRecording = record
+}
+
+function uploadSavedFrames(id, callback) {
+    var numFrame = 0
+    async.eachSeries(savedFrames, function(png, cb) {
+	superagent
+	    .post('/upload')
+	    .send({id: id})
+	    .send({frame: numFrame++})
+	    .send({png: png})
+	    .end(function(err, res) {
+		if (err) {
+		    console.error(err)
+		    return cb(err)
+		} else {
+		    return cb(null)
+		}
+	    })
+    }, callback)
+}
+    
+function saveFrame(callback) {
+
+    var canvas = document.getElementsByTagName('canvas')[0]
+    var png = canvas.toDataURL('image/png')
+    savedFrames.push(png)
+    callback()
+}
+
+function showSplines() {
+
+    var splineMat = new THREE.MeshBasicMaterial({
+	color: 0xffffff,
+	opacity: 0.3,
+	wireframe: false,
+	transparent: true
+    })
+    for (var i = 0; i < splines.length; i++) {
+	var splineGeo = new THREE.TubeGeometry(splines[i], 1000, 2, 8, false)
+	scene.add(new THREE.Mesh(splineGeo, splineMat))
+    }
+}    
+
+function handleKeypress(e) {
+
+    console.log('key', e.keyCode)
+
+    if (e.keyCode === 97 || e.keyCode === 65) { // 'a'nimate, 'A'nimate and record
+
+	var splines = []
+	// zoom out from origo
+	splines.push(new THREE.SplineCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(-4 * scale, 0, 0)]))
+
+	// rotation around y
+	var splinePoints = [new THREE.Vector3(-4 * scale, 0, 0)]
+	for (var angle = 0; angle <= 2 * Math.PI; angle += 2 * Math.PI / 16) {
+	    splinePoints.push(new THREE.Vector3(-4 * scale * Math.cos(angle), 0, 4 * scale * Math.sin(angle)))
+	}
+	splines.push(new THREE.SplineCurve3(splinePoints))
+
+	var tweenPos = [
+	    {x: -8, y: 25, z: 0},
+	    {x: -20, y: -21, z: -21}
+	]
+	var tweenAnnotations = [
+	    'blood',
+	    'brain'
+	]
+
+	splines.push(new THREE.SplineCurve3([
+	    new THREE.Vector3(tweenPos[1].x, tweenPos[1].y, tweenPos[1].z),
+	    new THREE.Vector3(-7, 6, 28),
+	    new THREE.Vector3(0, 0, 0)
+	]))
+	
+	if (e.keyCode === 65) {
+	    animationId = window.prompt('Please enter a name for your animation')
+	    if (animationId) {
+		startAnimation(splines, tweenPos, tweenAnnotations, true)
+	    } else {
+		window.alert('A name is needed')
+	    }
+	} else {
+	    startAnimation(splines, tweenPos, tweenAnnotations, false)
+	}
+    }
+    
+    if (e.keyCode === 115) { // 's'ave frame
+	saveFrame('test')
+    }
+    
+    if (e.keyCode === 99) { // 'c'amera
+	console.log(camera.position)
     }
 }
 
 var Scatter = {
 
-    initialize: function(domElement, width, height, dataX, dataY, dataZ) {
+    initialize: function(domElement, reactClass, width, height, dataX, dataY, dataZ) {
 
         console.log('initializing scatterplot, data length: ' + dataX.length)
+	react = reactClass
         init(width, height)
         drawAxes()
         drawTexts()
@@ -403,6 +639,9 @@ var Scatter = {
         setupGUI()
         printPerformance()
         animate()
+
+	document.onkeypress = handleKeypress
+	
         console.log('scatterplot initialized')
     },
     
@@ -443,7 +682,7 @@ var Scatter = {
 module.exports = Scatter
 
 
-},{"../../config/config.js":"/Users/juhis/Projects/scatter/config/config.js"}],"/Users/juhis/Projects/scatter/assets/jsx/App.js":[function(require,module,exports){
+},{"../../config/config.js":"/Users/juhis/Projects/scatter/config/config.js","async":"/usr/local/lib/node_modules/async/lib/async.js","superagent":"/Users/juhis/Projects/scatter/node_modules/superagent/lib/client.js"}],"/Users/juhis/Projects/scatter/assets/jsx/App.js":[function(require,module,exports){
 'use strict'
 
 var _ = require('lodash')
@@ -501,12 +740,7 @@ var styles = {
 }
 
 var message = _.sample([
-    'VISUALIZING',
-    'DOING MATH',
-    'PREPARING PARTICLES',
-    'CALCULATING STUFF',
-    'WARMING UP PIXELS',
-    'CONVERTING NUMBERS TO COLOR INTENSITIES'
+    'LOADING VISUALIZATION',
 ])
 
 var Arrow = Radium(React.createClass({
@@ -585,7 +819,7 @@ var ScatterApp = Radium(React.createClass({
                 setTimeout(function() { // timeout to allow state update before scatter initialization
                     var scatterWidth = window.innerWidth - ((this.refs.menu && this.refs.menu.getDOMNode().offsetWidth) || 100)
                     var scatterHeight = window.innerHeight
-                    scatter.initialize(domNode, scatterWidth, scatterHeight, this.state.pointData[hashIndex['x']], this.state.pointData[hashIndex['y']], this.state.pointData[hashIndex['z']])
+                    scatter.initialize(domNode, this, scatterWidth, scatterHeight, this.state.pointData[hashIndex['x']], this.state.pointData[hashIndex['y']], this.state.pointData[hashIndex['z']])
                     this.setState({
                         isInitialized: true
                     })
@@ -626,21 +860,26 @@ var ScatterApp = Radium(React.createClass({
             }
         })
     },
+
+    setAnnotationByName: function(name) {
+	this.setAnnotation(this.state.annotations[name.toLowerCase()])
+    },
     
     setAnnotation: function(item) {
-        
+
         var that = this
         if (!item) {
             scatter.setAnnotations(null)
         } else {
-            if (this.state.annotations[item.name]) {
-                scatter.setAnnotations(this.state.annotations[item.name])
+	    var lcase = item.name.toLowerCase()
+            if (this.state.annotations[lcase]) {
+                scatter.setAnnotations(this.state.annotations[lcase])
             } else {
                 d3.json(config.annotationDir + item.filename, function(err, data) {
                     if (err) console.error(err)
                     else {
                         scatter.setAnnotations(data)
-                        that.state.annotations[item.name] = data
+                        that.state.annotations[lcase] = data
                         that.setState({
                             annotations: that.state.annotations
                         })
@@ -728,7 +967,7 @@ var ScatterApp = Radium(React.createClass({
                         key: child.name, 
                         style: [styles.annotationItem, styles.annotationItemChild, dynamicStyle], 
                         onClick: this.onAnnotationClick.bind(null, child, true)}, 
-                            child.name.toUpperCase()
+                            child.name.toUpperCase() + (!!child.numAnnotated ? ' (' + child.numAnnotated + ')' : '')
                         )
                     )
                 }, this)
@@ -743,7 +982,7 @@ var ScatterApp = Radium(React.createClass({
             return (
                     React.createElement("div", {key: item.name}, 
                     React.createElement("div", {style: [styles.annotationItem, dynamicStyle], onClick: this.onAnnotationClick.bind(null, item, false)}, 
-                    item.name.toUpperCase()
+                    item.name.toUpperCase() + (!!item.numAnnotated ? ' (' + item.numAnnotated + ')' : '')
                 ), 
                     childItems
                 )
@@ -778,17 +1017,21 @@ React.render(routes, document.body)
 },{"../../config/config":"/Users/juhis/Projects/scatter/config/config.js","../js/scatter":"/Users/juhis/Projects/scatter/assets/js/scatter.js","history/lib/createBrowserHistory":"/Users/juhis/Projects/scatter/node_modules/history/lib/createBrowserHistory.js","lodash":"/Users/juhis/Projects/scatter/node_modules/lodash/index.js","radium":"/Users/juhis/Projects/scatter/node_modules/radium/lib/index.js","react":"/Users/juhis/Projects/scatter/node_modules/react/react.js","react-router":"/Users/juhis/Projects/scatter/node_modules/react-router/lib/index.js"}],"/Users/juhis/Projects/scatter/config/config.js":[function(require,module,exports){
 module.exports = {
 
-    dataDir: '/assets/data/example/',
+    url: 'http://localhost',
+    port: 8080,
+    
+    dataDir: '/assets/data/pc2/',
     dataPrefix: 'PC',
-    numDimensions: 6,
-    annotationDir: '/assets/data/example_annotations/',
+    numDimensions: 100,
+    annotationDir: '/assets/data/annotations/',
 
     defaultPointSize: 1.3,
     defaultPointSizeAnnotated: 3.5,
     defaultOpacity: 0.25,
-    defaultTransitionSpeed: 200,
+    defaultTransitionSpeed: 50,
+    defaultAnimationSpeed: 80,
 
-    hueAnnotated: 0.87,
+    hueAnnotated: 0.54,
     saturationAnnotated: 1,
     lightnessAnnotated: 0.5,
     hueNotAnnotated: 0.5,
@@ -18577,11 +18820,7 @@ exports['default'] = useQueries;
 module.exports = exports['default'];
 },{"qs":"/Users/juhis/Projects/scatter/node_modules/react-router/node_modules/history/node_modules/qs/lib/index.js"}],"/Users/juhis/Projects/scatter/node_modules/react-router/node_modules/history/node_modules/deep-equal/index.js":[function(require,module,exports){
 module.exports=require("/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/index.js")
-},{"/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/index.js":"/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/index.js"}],"/Users/juhis/Projects/scatter/node_modules/react-router/node_modules/history/node_modules/deep-equal/lib/is_arguments.js":[function(require,module,exports){
-module.exports=require("/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/lib/is_arguments.js")
-},{"/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/lib/is_arguments.js":"/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/lib/is_arguments.js"}],"/Users/juhis/Projects/scatter/node_modules/react-router/node_modules/history/node_modules/deep-equal/lib/keys.js":[function(require,module,exports){
-module.exports=require("/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/lib/keys.js")
-},{"/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/lib/keys.js":"/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/lib/keys.js"}],"/Users/juhis/Projects/scatter/node_modules/react-router/node_modules/history/node_modules/qs/lib/index.js":[function(require,module,exports){
+},{"/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/index.js":"/Users/juhis/Projects/scatter/node_modules/history/node_modules/deep-equal/index.js"}],"/Users/juhis/Projects/scatter/node_modules/react-router/node_modules/history/node_modules/qs/lib/index.js":[function(require,module,exports){
 // Load modules
 
 var Stringify = require('./stringify');
@@ -38823,7 +39062,2484 @@ module.exports = warning;
 },{"./emptyFunction":"/Users/juhis/Projects/scatter/node_modules/react/lib/emptyFunction.js","_process":"/usr/local/lib/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/juhis/Projects/scatter/node_modules/react/react.js":[function(require,module,exports){
 module.exports = require('./lib/React');
 
-},{"./lib/React":"/Users/juhis/Projects/scatter/node_modules/react/lib/React.js"}],"/usr/local/lib/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js":[function(require,module,exports){
+},{"./lib/React":"/Users/juhis/Projects/scatter/node_modules/react/lib/React.js"}],"/Users/juhis/Projects/scatter/node_modules/superagent/lib/client.js":[function(require,module,exports){
+/**
+ * Module dependencies.
+ */
+
+var Emitter = require('emitter');
+var reduce = require('reduce');
+
+/**
+ * Root reference for iframes.
+ */
+
+var root;
+if (typeof window !== 'undefined') { // Browser window
+  root = window;
+} else if (typeof self !== 'undefined') { // Web Worker
+  root = self;
+} else { // Other environments
+  root = this;
+}
+
+/**
+ * Noop.
+ */
+
+function noop(){};
+
+/**
+ * Check if `obj` is a host object,
+ * we don't want to serialize these :)
+ *
+ * TODO: future proof, move to compoent land
+ *
+ * @param {Object} obj
+ * @return {Boolean}
+ * @api private
+ */
+
+function isHost(obj) {
+  var str = {}.toString.call(obj);
+
+  switch (str) {
+    case '[object File]':
+    case '[object Blob]':
+    case '[object FormData]':
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Determine XHR.
+ */
+
+request.getXHR = function () {
+  if (root.XMLHttpRequest
+      && (!root.location || 'file:' != root.location.protocol
+          || !root.ActiveXObject)) {
+    return new XMLHttpRequest;
+  } else {
+    try { return new ActiveXObject('Microsoft.XMLHTTP'); } catch(e) {}
+    try { return new ActiveXObject('Msxml2.XMLHTTP.6.0'); } catch(e) {}
+    try { return new ActiveXObject('Msxml2.XMLHTTP.3.0'); } catch(e) {}
+    try { return new ActiveXObject('Msxml2.XMLHTTP'); } catch(e) {}
+  }
+  return false;
+};
+
+/**
+ * Removes leading and trailing whitespace, added to support IE.
+ *
+ * @param {String} s
+ * @return {String}
+ * @api private
+ */
+
+var trim = ''.trim
+  ? function(s) { return s.trim(); }
+  : function(s) { return s.replace(/(^\s*|\s*$)/g, ''); };
+
+/**
+ * Check if `obj` is an object.
+ *
+ * @param {Object} obj
+ * @return {Boolean}
+ * @api private
+ */
+
+function isObject(obj) {
+  return obj === Object(obj);
+}
+
+/**
+ * Serialize the given `obj`.
+ *
+ * @param {Object} obj
+ * @return {String}
+ * @api private
+ */
+
+function serialize(obj) {
+  if (!isObject(obj)) return obj;
+  var pairs = [];
+  for (var key in obj) {
+    if (null != obj[key]) {
+      pairs.push(encodeURIComponent(key)
+        + '=' + encodeURIComponent(obj[key]));
+    }
+  }
+  return pairs.join('&');
+}
+
+/**
+ * Expose serialization method.
+ */
+
+ request.serializeObject = serialize;
+
+ /**
+  * Parse the given x-www-form-urlencoded `str`.
+  *
+  * @param {String} str
+  * @return {Object}
+  * @api private
+  */
+
+function parseString(str) {
+  var obj = {};
+  var pairs = str.split('&');
+  var parts;
+  var pair;
+
+  for (var i = 0, len = pairs.length; i < len; ++i) {
+    pair = pairs[i];
+    parts = pair.split('=');
+    obj[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1]);
+  }
+
+  return obj;
+}
+
+/**
+ * Expose parser.
+ */
+
+request.parseString = parseString;
+
+/**
+ * Default MIME type map.
+ *
+ *     superagent.types.xml = 'application/xml';
+ *
+ */
+
+request.types = {
+  html: 'text/html',
+  json: 'application/json',
+  xml: 'application/xml',
+  urlencoded: 'application/x-www-form-urlencoded',
+  'form': 'application/x-www-form-urlencoded',
+  'form-data': 'application/x-www-form-urlencoded'
+};
+
+/**
+ * Default serialization map.
+ *
+ *     superagent.serialize['application/xml'] = function(obj){
+ *       return 'generated xml here';
+ *     };
+ *
+ */
+
+ request.serialize = {
+   'application/x-www-form-urlencoded': serialize,
+   'application/json': JSON.stringify
+ };
+
+ /**
+  * Default parsers.
+  *
+  *     superagent.parse['application/xml'] = function(str){
+  *       return { object parsed from str };
+  *     };
+  *
+  */
+
+request.parse = {
+  'application/x-www-form-urlencoded': parseString,
+  'application/json': JSON.parse
+};
+
+/**
+ * Parse the given header `str` into
+ * an object containing the mapped fields.
+ *
+ * @param {String} str
+ * @return {Object}
+ * @api private
+ */
+
+function parseHeader(str) {
+  var lines = str.split(/\r?\n/);
+  var fields = {};
+  var index;
+  var line;
+  var field;
+  var val;
+
+  lines.pop(); // trailing CRLF
+
+  for (var i = 0, len = lines.length; i < len; ++i) {
+    line = lines[i];
+    index = line.indexOf(':');
+    field = line.slice(0, index).toLowerCase();
+    val = trim(line.slice(index + 1));
+    fields[field] = val;
+  }
+
+  return fields;
+}
+
+/**
+ * Return the mime type for the given `str`.
+ *
+ * @param {String} str
+ * @return {String}
+ * @api private
+ */
+
+function type(str){
+  return str.split(/ *; */).shift();
+};
+
+/**
+ * Return header field parameters.
+ *
+ * @param {String} str
+ * @return {Object}
+ * @api private
+ */
+
+function params(str){
+  return reduce(str.split(/ *; */), function(obj, str){
+    var parts = str.split(/ *= */)
+      , key = parts.shift()
+      , val = parts.shift();
+
+    if (key && val) obj[key] = val;
+    return obj;
+  }, {});
+};
+
+/**
+ * Initialize a new `Response` with the given `xhr`.
+ *
+ *  - set flags (.ok, .error, etc)
+ *  - parse header
+ *
+ * Examples:
+ *
+ *  Aliasing `superagent` as `request` is nice:
+ *
+ *      request = superagent;
+ *
+ *  We can use the promise-like API, or pass callbacks:
+ *
+ *      request.get('/').end(function(res){});
+ *      request.get('/', function(res){});
+ *
+ *  Sending data can be chained:
+ *
+ *      request
+ *        .post('/user')
+ *        .send({ name: 'tj' })
+ *        .end(function(res){});
+ *
+ *  Or passed to `.send()`:
+ *
+ *      request
+ *        .post('/user')
+ *        .send({ name: 'tj' }, function(res){});
+ *
+ *  Or passed to `.post()`:
+ *
+ *      request
+ *        .post('/user', { name: 'tj' })
+ *        .end(function(res){});
+ *
+ * Or further reduced to a single call for simple cases:
+ *
+ *      request
+ *        .post('/user', { name: 'tj' }, function(res){});
+ *
+ * @param {XMLHTTPRequest} xhr
+ * @param {Object} options
+ * @api private
+ */
+
+function Response(req, options) {
+  options = options || {};
+  this.req = req;
+  this.xhr = this.req.xhr;
+  // responseText is accessible only if responseType is '' or 'text' and on older browsers
+  this.text = ((this.req.method !='HEAD' && (this.xhr.responseType === '' || this.xhr.responseType === 'text')) || typeof this.xhr.responseType === 'undefined')
+     ? this.xhr.responseText
+     : null;
+  this.statusText = this.req.xhr.statusText;
+  this.setStatusProperties(this.xhr.status);
+  this.header = this.headers = parseHeader(this.xhr.getAllResponseHeaders());
+  // getAllResponseHeaders sometimes falsely returns "" for CORS requests, but
+  // getResponseHeader still works. so we get content-type even if getting
+  // other headers fails.
+  this.header['content-type'] = this.xhr.getResponseHeader('content-type');
+  this.setHeaderProperties(this.header);
+  this.body = this.req.method != 'HEAD'
+    ? this.parseBody(this.text ? this.text : this.xhr.response)
+    : null;
+}
+
+/**
+ * Get case-insensitive `field` value.
+ *
+ * @param {String} field
+ * @return {String}
+ * @api public
+ */
+
+Response.prototype.get = function(field){
+  return this.header[field.toLowerCase()];
+};
+
+/**
+ * Set header related properties:
+ *
+ *   - `.type` the content type without params
+ *
+ * A response of "Content-Type: text/plain; charset=utf-8"
+ * will provide you with a `.type` of "text/plain".
+ *
+ * @param {Object} header
+ * @api private
+ */
+
+Response.prototype.setHeaderProperties = function(header){
+  // content-type
+  var ct = this.header['content-type'] || '';
+  this.type = type(ct);
+
+  // params
+  var obj = params(ct);
+  for (var key in obj) this[key] = obj[key];
+};
+
+/**
+ * Force given parser
+ * 
+ * Sets the body parser no matter type.
+ * 
+ * @param {Function}
+ * @api public
+ */
+
+Response.prototype.parse = function(fn){
+  this.parser = fn;
+  return this;
+};
+
+/**
+ * Parse the given body `str`.
+ *
+ * Used for auto-parsing of bodies. Parsers
+ * are defined on the `superagent.parse` object.
+ *
+ * @param {String} str
+ * @return {Mixed}
+ * @api private
+ */
+
+Response.prototype.parseBody = function(str){
+  var parse = this.parser || request.parse[this.type];
+  return parse && str && (str.length || str instanceof Object)
+    ? parse(str)
+    : null;
+};
+
+/**
+ * Set flags such as `.ok` based on `status`.
+ *
+ * For example a 2xx response will give you a `.ok` of __true__
+ * whereas 5xx will be __false__ and `.error` will be __true__. The
+ * `.clientError` and `.serverError` are also available to be more
+ * specific, and `.statusType` is the class of error ranging from 1..5
+ * sometimes useful for mapping respond colors etc.
+ *
+ * "sugar" properties are also defined for common cases. Currently providing:
+ *
+ *   - .noContent
+ *   - .badRequest
+ *   - .unauthorized
+ *   - .notAcceptable
+ *   - .notFound
+ *
+ * @param {Number} status
+ * @api private
+ */
+
+Response.prototype.setStatusProperties = function(status){
+  // handle IE9 bug: http://stackoverflow.com/questions/10046972/msie-returns-status-code-of-1223-for-ajax-request
+  if (status === 1223) {
+    status = 204;
+  }
+
+  var type = status / 100 | 0;
+
+  // status / class
+  this.status = this.statusCode = status;
+  this.statusType = type;
+
+  // basics
+  this.info = 1 == type;
+  this.ok = 2 == type;
+  this.clientError = 4 == type;
+  this.serverError = 5 == type;
+  this.error = (4 == type || 5 == type)
+    ? this.toError()
+    : false;
+
+  // sugar
+  this.accepted = 202 == status;
+  this.noContent = 204 == status;
+  this.badRequest = 400 == status;
+  this.unauthorized = 401 == status;
+  this.notAcceptable = 406 == status;
+  this.notFound = 404 == status;
+  this.forbidden = 403 == status;
+};
+
+/**
+ * Return an `Error` representative of this response.
+ *
+ * @return {Error}
+ * @api public
+ */
+
+Response.prototype.toError = function(){
+  var req = this.req;
+  var method = req.method;
+  var url = req.url;
+
+  var msg = 'cannot ' + method + ' ' + url + ' (' + this.status + ')';
+  var err = new Error(msg);
+  err.status = this.status;
+  err.method = method;
+  err.url = url;
+
+  return err;
+};
+
+/**
+ * Expose `Response`.
+ */
+
+request.Response = Response;
+
+/**
+ * Initialize a new `Request` with the given `method` and `url`.
+ *
+ * @param {String} method
+ * @param {String} url
+ * @api public
+ */
+
+function Request(method, url) {
+  var self = this;
+  Emitter.call(this);
+  this._query = this._query || [];
+  this.method = method;
+  this.url = url;
+  this.header = {};
+  this._header = {};
+  this.on('end', function(){
+    var err = null;
+    var res = null;
+
+    try {
+      res = new Response(self);
+    } catch(e) {
+      err = new Error('Parser is unable to parse the response');
+      err.parse = true;
+      err.original = e;
+      return self.callback(err);
+    }
+
+    self.emit('response', res);
+
+    if (err) {
+      return self.callback(err, res);
+    }
+
+    if (res.status >= 200 && res.status < 300) {
+      return self.callback(err, res);
+    }
+
+    var new_err = new Error(res.statusText || 'Unsuccessful HTTP response');
+    new_err.original = err;
+    new_err.response = res;
+    new_err.status = res.status;
+
+    self.callback(new_err, res);
+  });
+}
+
+/**
+ * Mixin `Emitter`.
+ */
+
+Emitter(Request.prototype);
+
+/**
+ * Allow for extension
+ */
+
+Request.prototype.use = function(fn) {
+  fn(this);
+  return this;
+}
+
+/**
+ * Set timeout to `ms`.
+ *
+ * @param {Number} ms
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.timeout = function(ms){
+  this._timeout = ms;
+  return this;
+};
+
+/**
+ * Clear previous timeout.
+ *
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.clearTimeout = function(){
+  this._timeout = 0;
+  clearTimeout(this._timer);
+  return this;
+};
+
+/**
+ * Abort the request, and clear potential timeout.
+ *
+ * @return {Request}
+ * @api public
+ */
+
+Request.prototype.abort = function(){
+  if (this.aborted) return;
+  this.aborted = true;
+  this.xhr.abort();
+  this.clearTimeout();
+  this.emit('abort');
+  return this;
+};
+
+/**
+ * Set header `field` to `val`, or multiple fields with one object.
+ *
+ * Examples:
+ *
+ *      req.get('/')
+ *        .set('Accept', 'application/json')
+ *        .set('X-API-Key', 'foobar')
+ *        .end(callback);
+ *
+ *      req.get('/')
+ *        .set({ Accept: 'application/json', 'X-API-Key': 'foobar' })
+ *        .end(callback);
+ *
+ * @param {String|Object} field
+ * @param {String} val
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.set = function(field, val){
+  if (isObject(field)) {
+    for (var key in field) {
+      this.set(key, field[key]);
+    }
+    return this;
+  }
+  this._header[field.toLowerCase()] = val;
+  this.header[field] = val;
+  return this;
+};
+
+/**
+ * Remove header `field`.
+ *
+ * Example:
+ *
+ *      req.get('/')
+ *        .unset('User-Agent')
+ *        .end(callback);
+ *
+ * @param {String} field
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.unset = function(field){
+  delete this._header[field.toLowerCase()];
+  delete this.header[field];
+  return this;
+};
+
+/**
+ * Get case-insensitive header `field` value.
+ *
+ * @param {String} field
+ * @return {String}
+ * @api private
+ */
+
+Request.prototype.getHeader = function(field){
+  return this._header[field.toLowerCase()];
+};
+
+/**
+ * Set Content-Type to `type`, mapping values from `request.types`.
+ *
+ * Examples:
+ *
+ *      superagent.types.xml = 'application/xml';
+ *
+ *      request.post('/')
+ *        .type('xml')
+ *        .send(xmlstring)
+ *        .end(callback);
+ *
+ *      request.post('/')
+ *        .type('application/xml')
+ *        .send(xmlstring)
+ *        .end(callback);
+ *
+ * @param {String} type
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.type = function(type){
+  this.set('Content-Type', request.types[type] || type);
+  return this;
+};
+
+/**
+ * Set Accept to `type`, mapping values from `request.types`.
+ *
+ * Examples:
+ *
+ *      superagent.types.json = 'application/json';
+ *
+ *      request.get('/agent')
+ *        .accept('json')
+ *        .end(callback);
+ *
+ *      request.get('/agent')
+ *        .accept('application/json')
+ *        .end(callback);
+ *
+ * @param {String} accept
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.accept = function(type){
+  this.set('Accept', request.types[type] || type);
+  return this;
+};
+
+/**
+ * Set Authorization field value with `user` and `pass`.
+ *
+ * @param {String} user
+ * @param {String} pass
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.auth = function(user, pass){
+  var str = btoa(user + ':' + pass);
+  this.set('Authorization', 'Basic ' + str);
+  return this;
+};
+
+/**
+* Add query-string `val`.
+*
+* Examples:
+*
+*   request.get('/shoes')
+*     .query('size=10')
+*     .query({ color: 'blue' })
+*
+* @param {Object|String} val
+* @return {Request} for chaining
+* @api public
+*/
+
+Request.prototype.query = function(val){
+  if ('string' != typeof val) val = serialize(val);
+  if (val) this._query.push(val);
+  return this;
+};
+
+/**
+ * Write the field `name` and `val` for "multipart/form-data"
+ * request bodies.
+ *
+ * ``` js
+ * request.post('/upload')
+ *   .field('foo', 'bar')
+ *   .end(callback);
+ * ```
+ *
+ * @param {String} name
+ * @param {String|Blob|File} val
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.field = function(name, val){
+  if (!this._formData) this._formData = new root.FormData();
+  this._formData.append(name, val);
+  return this;
+};
+
+/**
+ * Queue the given `file` as an attachment to the specified `field`,
+ * with optional `filename`.
+ *
+ * ``` js
+ * request.post('/upload')
+ *   .attach(new Blob(['<a id="a"><b id="b">hey!</b></a>'], { type: "text/html"}))
+ *   .end(callback);
+ * ```
+ *
+ * @param {String} field
+ * @param {Blob|File} file
+ * @param {String} filename
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.attach = function(field, file, filename){
+  if (!this._formData) this._formData = new root.FormData();
+  this._formData.append(field, file, filename);
+  return this;
+};
+
+/**
+ * Send `data`, defaulting the `.type()` to "json" when
+ * an object is given.
+ *
+ * Examples:
+ *
+ *       // querystring
+ *       request.get('/search')
+ *         .end(callback)
+ *
+ *       // multiple data "writes"
+ *       request.get('/search')
+ *         .send({ search: 'query' })
+ *         .send({ range: '1..5' })
+ *         .send({ order: 'desc' })
+ *         .end(callback)
+ *
+ *       // manual json
+ *       request.post('/user')
+ *         .type('json')
+ *         .send('{"name":"tj"})
+ *         .end(callback)
+ *
+ *       // auto json
+ *       request.post('/user')
+ *         .send({ name: 'tj' })
+ *         .end(callback)
+ *
+ *       // manual x-www-form-urlencoded
+ *       request.post('/user')
+ *         .type('form')
+ *         .send('name=tj')
+ *         .end(callback)
+ *
+ *       // auto x-www-form-urlencoded
+ *       request.post('/user')
+ *         .type('form')
+ *         .send({ name: 'tj' })
+ *         .end(callback)
+ *
+ *       // defaults to x-www-form-urlencoded
+  *      request.post('/user')
+  *        .send('name=tobi')
+  *        .send('species=ferret')
+  *        .end(callback)
+ *
+ * @param {String|Object} data
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.send = function(data){
+  var obj = isObject(data);
+  var type = this.getHeader('Content-Type');
+
+  // merge
+  if (obj && isObject(this._data)) {
+    for (var key in data) {
+      this._data[key] = data[key];
+    }
+  } else if ('string' == typeof data) {
+    if (!type) this.type('form');
+    type = this.getHeader('Content-Type');
+    if ('application/x-www-form-urlencoded' == type) {
+      this._data = this._data
+        ? this._data + '&' + data
+        : data;
+    } else {
+      this._data = (this._data || '') + data;
+    }
+  } else {
+    this._data = data;
+  }
+
+  if (!obj || isHost(data)) return this;
+  if (!type) this.type('json');
+  return this;
+};
+
+/**
+ * Invoke the callback with `err` and `res`
+ * and handle arity check.
+ *
+ * @param {Error} err
+ * @param {Response} res
+ * @api private
+ */
+
+Request.prototype.callback = function(err, res){
+  var fn = this._callback;
+  this.clearTimeout();
+  fn(err, res);
+};
+
+/**
+ * Invoke callback with x-domain error.
+ *
+ * @api private
+ */
+
+Request.prototype.crossDomainError = function(){
+  var err = new Error('Origin is not allowed by Access-Control-Allow-Origin');
+  err.crossDomain = true;
+  this.callback(err);
+};
+
+/**
+ * Invoke callback with timeout error.
+ *
+ * @api private
+ */
+
+Request.prototype.timeoutError = function(){
+  var timeout = this._timeout;
+  var err = new Error('timeout of ' + timeout + 'ms exceeded');
+  err.timeout = timeout;
+  this.callback(err);
+};
+
+/**
+ * Enable transmission of cookies with x-domain requests.
+ *
+ * Note that for this to work the origin must not be
+ * using "Access-Control-Allow-Origin" with a wildcard,
+ * and also must set "Access-Control-Allow-Credentials"
+ * to "true".
+ *
+ * @api public
+ */
+
+Request.prototype.withCredentials = function(){
+  this._withCredentials = true;
+  return this;
+};
+
+/**
+ * Initiate request, invoking callback `fn(res)`
+ * with an instanceof `Response`.
+ *
+ * @param {Function} fn
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.end = function(fn){
+  var self = this;
+  var xhr = this.xhr = request.getXHR();
+  var query = this._query.join('&');
+  var timeout = this._timeout;
+  var data = this._formData || this._data;
+
+  // store callback
+  this._callback = fn || noop;
+
+  // state change
+  xhr.onreadystatechange = function(){
+    if (4 != xhr.readyState) return;
+
+    // In IE9, reads to any property (e.g. status) off of an aborted XHR will
+    // result in the error "Could not complete the operation due to error c00c023f"
+    var status;
+    try { status = xhr.status } catch(e) { status = 0; }
+
+    if (0 == status) {
+      if (self.timedout) return self.timeoutError();
+      if (self.aborted) return;
+      return self.crossDomainError();
+    }
+    self.emit('end');
+  };
+
+  // progress
+  var handleProgress = function(e){
+    if (e.total > 0) {
+      e.percent = e.loaded / e.total * 100;
+    }
+    self.emit('progress', e);
+  };
+  if (this.hasListeners('progress')) {
+    xhr.onprogress = handleProgress;
+  }
+  try {
+    if (xhr.upload && this.hasListeners('progress')) {
+      xhr.upload.onprogress = handleProgress;
+    }
+  } catch(e) {
+    // Accessing xhr.upload fails in IE from a web worker, so just pretend it doesn't exist.
+    // Reported here:
+    // https://connect.microsoft.com/IE/feedback/details/837245/xmlhttprequest-upload-throws-invalid-argument-when-used-from-web-worker-context
+  }
+
+  // timeout
+  if (timeout && !this._timer) {
+    this._timer = setTimeout(function(){
+      self.timedout = true;
+      self.abort();
+    }, timeout);
+  }
+
+  // querystring
+  if (query) {
+    query = request.serializeObject(query);
+    this.url += ~this.url.indexOf('?')
+      ? '&' + query
+      : '?' + query;
+  }
+
+  // initiate request
+  xhr.open(this.method, this.url, true);
+
+  // CORS
+  if (this._withCredentials) xhr.withCredentials = true;
+
+  // body
+  if ('GET' != this.method && 'HEAD' != this.method && 'string' != typeof data && !isHost(data)) {
+    // serialize stuff
+    var contentType = this.getHeader('Content-Type');
+    var serialize = request.serialize[contentType ? contentType.split(';')[0] : ''];
+    if (serialize) data = serialize(data);
+  }
+
+  // set header fields
+  for (var field in this.header) {
+    if (null == this.header[field]) continue;
+    xhr.setRequestHeader(field, this.header[field]);
+  }
+
+  // send stuff
+  this.emit('request', this);
+  xhr.send(data);
+  return this;
+};
+
+/**
+ * Faux promise support
+ *
+ * @param {Function} fulfill
+ * @param {Function} reject
+ * @return {Request}
+ */
+
+Request.prototype.then = function (fulfill, reject) {
+  return this.end(function(err, res) {
+    err ? reject(err) : fulfill(res);
+  });
+}
+
+/**
+ * Expose `Request`.
+ */
+
+request.Request = Request;
+
+/**
+ * Issue a request:
+ *
+ * Examples:
+ *
+ *    request('GET', '/users').end(callback)
+ *    request('/users').end(callback)
+ *    request('/users', callback)
+ *
+ * @param {String} method
+ * @param {String|Function} url or callback
+ * @return {Request}
+ * @api public
+ */
+
+function request(method, url) {
+  // callback
+  if ('function' == typeof url) {
+    return new Request('GET', method).end(url);
+  }
+
+  // url first
+  if (1 == arguments.length) {
+    return new Request('GET', method);
+  }
+
+  return new Request(method, url);
+}
+
+/**
+ * GET `url` with optional callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed|Function} data or fn
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.get = function(url, data, fn){
+  var req = request('GET', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.query(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * HEAD `url` with optional callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed|Function} data or fn
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.head = function(url, data, fn){
+  var req = request('HEAD', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.send(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * DELETE `url` with optional callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.del = function(url, fn){
+  var req = request('DELETE', url);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * PATCH `url` with optional `data` and callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed} data
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.patch = function(url, data, fn){
+  var req = request('PATCH', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.send(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * POST `url` with optional `data` and callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed} data
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.post = function(url, data, fn){
+  var req = request('POST', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.send(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * PUT `url` with optional `data` and callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed|Function} data or fn
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.put = function(url, data, fn){
+  var req = request('PUT', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.send(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * Expose `request`.
+ */
+
+module.exports = request;
+
+},{"emitter":"/Users/juhis/Projects/scatter/node_modules/superagent/node_modules/component-emitter/index.js","reduce":"/Users/juhis/Projects/scatter/node_modules/superagent/node_modules/reduce-component/index.js"}],"/Users/juhis/Projects/scatter/node_modules/superagent/node_modules/component-emitter/index.js":[function(require,module,exports){
+
+/**
+ * Expose `Emitter`.
+ */
+
+module.exports = Emitter;
+
+/**
+ * Initialize a new `Emitter`.
+ *
+ * @api public
+ */
+
+function Emitter(obj) {
+  if (obj) return mixin(obj);
+};
+
+/**
+ * Mixin the emitter properties.
+ *
+ * @param {Object} obj
+ * @return {Object}
+ * @api private
+ */
+
+function mixin(obj) {
+  for (var key in Emitter.prototype) {
+    obj[key] = Emitter.prototype[key];
+  }
+  return obj;
+}
+
+/**
+ * Listen on the given `event` with `fn`.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.on =
+Emitter.prototype.addEventListener = function(event, fn){
+  this._callbacks = this._callbacks || {};
+  (this._callbacks[event] = this._callbacks[event] || [])
+    .push(fn);
+  return this;
+};
+
+/**
+ * Adds an `event` listener that will be invoked a single
+ * time then automatically removed.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.once = function(event, fn){
+  var self = this;
+  this._callbacks = this._callbacks || {};
+
+  function on() {
+    self.off(event, on);
+    fn.apply(this, arguments);
+  }
+
+  on.fn = fn;
+  this.on(event, on);
+  return this;
+};
+
+/**
+ * Remove the given callback for `event` or all
+ * registered callbacks.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.off =
+Emitter.prototype.removeListener =
+Emitter.prototype.removeAllListeners =
+Emitter.prototype.removeEventListener = function(event, fn){
+  this._callbacks = this._callbacks || {};
+
+  // all
+  if (0 == arguments.length) {
+    this._callbacks = {};
+    return this;
+  }
+
+  // specific event
+  var callbacks = this._callbacks[event];
+  if (!callbacks) return this;
+
+  // remove all handlers
+  if (1 == arguments.length) {
+    delete this._callbacks[event];
+    return this;
+  }
+
+  // remove specific handler
+  var cb;
+  for (var i = 0; i < callbacks.length; i++) {
+    cb = callbacks[i];
+    if (cb === fn || cb.fn === fn) {
+      callbacks.splice(i, 1);
+      break;
+    }
+  }
+  return this;
+};
+
+/**
+ * Emit `event` with the given args.
+ *
+ * @param {String} event
+ * @param {Mixed} ...
+ * @return {Emitter}
+ */
+
+Emitter.prototype.emit = function(event){
+  this._callbacks = this._callbacks || {};
+  var args = [].slice.call(arguments, 1)
+    , callbacks = this._callbacks[event];
+
+  if (callbacks) {
+    callbacks = callbacks.slice(0);
+    for (var i = 0, len = callbacks.length; i < len; ++i) {
+      callbacks[i].apply(this, args);
+    }
+  }
+
+  return this;
+};
+
+/**
+ * Return array of callbacks for `event`.
+ *
+ * @param {String} event
+ * @return {Array}
+ * @api public
+ */
+
+Emitter.prototype.listeners = function(event){
+  this._callbacks = this._callbacks || {};
+  return this._callbacks[event] || [];
+};
+
+/**
+ * Check if this emitter has `event` handlers.
+ *
+ * @param {String} event
+ * @return {Boolean}
+ * @api public
+ */
+
+Emitter.prototype.hasListeners = function(event){
+  return !! this.listeners(event).length;
+};
+
+},{}],"/Users/juhis/Projects/scatter/node_modules/superagent/node_modules/reduce-component/index.js":[function(require,module,exports){
+
+/**
+ * Reduce `arr` with `fn`.
+ *
+ * @param {Array} arr
+ * @param {Function} fn
+ * @param {Mixed} initial
+ *
+ * TODO: combatible error handling?
+ */
+
+module.exports = function(arr, fn, initial){  
+  var idx = 0;
+  var len = arr.length;
+  var curr = arguments.length == 3
+    ? initial
+    : arr[idx++];
+
+  while (idx < len) {
+    curr = fn.call(null, curr, arr[idx], ++idx, arr);
+  }
+  
+  return curr;
+};
+},{}],"/usr/local/lib/node_modules/async/lib/async.js":[function(require,module,exports){
+(function (process){
+/*!
+ * async
+ * https://github.com/caolan/async
+ *
+ * Copyright 2010-2014 Caolan McMahon
+ * Released under the MIT license
+ */
+/*jshint onevar: false, indent:4 */
+/*global setImmediate: false, setTimeout: false, console: false */
+(function () {
+
+    var async = {};
+
+    // global on the server, window in the browser
+    var root, previous_async;
+
+    root = this;
+    if (root != null) {
+      previous_async = root.async;
+    }
+
+    async.noConflict = function () {
+        root.async = previous_async;
+        return async;
+    };
+
+    function only_once(fn) {
+        var called = false;
+        return function() {
+            if (called) throw new Error("Callback was already called.");
+            called = true;
+            fn.apply(root, arguments);
+        }
+    }
+
+    //// cross-browser compatiblity functions ////
+
+    var _toString = Object.prototype.toString;
+
+    var _isArray = Array.isArray || function (obj) {
+        return _toString.call(obj) === '[object Array]';
+    };
+
+    var _each = function (arr, iterator) {
+        if (arr.forEach) {
+            return arr.forEach(iterator);
+        }
+        for (var i = 0; i < arr.length; i += 1) {
+            iterator(arr[i], i, arr);
+        }
+    };
+
+    var _map = function (arr, iterator) {
+        if (arr.map) {
+            return arr.map(iterator);
+        }
+        var results = [];
+        _each(arr, function (x, i, a) {
+            results.push(iterator(x, i, a));
+        });
+        return results;
+    };
+
+    var _reduce = function (arr, iterator, memo) {
+        if (arr.reduce) {
+            return arr.reduce(iterator, memo);
+        }
+        _each(arr, function (x, i, a) {
+            memo = iterator(memo, x, i, a);
+        });
+        return memo;
+    };
+
+    var _keys = function (obj) {
+        if (Object.keys) {
+            return Object.keys(obj);
+        }
+        var keys = [];
+        for (var k in obj) {
+            if (obj.hasOwnProperty(k)) {
+                keys.push(k);
+            }
+        }
+        return keys;
+    };
+
+    //// exported async module functions ////
+
+    //// nextTick implementation with browser-compatible fallback ////
+    if (typeof process === 'undefined' || !(process.nextTick)) {
+        if (typeof setImmediate === 'function') {
+            async.nextTick = function (fn) {
+                // not a direct alias for IE10 compatibility
+                setImmediate(fn);
+            };
+            async.setImmediate = async.nextTick;
+        }
+        else {
+            async.nextTick = function (fn) {
+                setTimeout(fn, 0);
+            };
+            async.setImmediate = async.nextTick;
+        }
+    }
+    else {
+        async.nextTick = process.nextTick;
+        if (typeof setImmediate !== 'undefined') {
+            async.setImmediate = function (fn) {
+              // not a direct alias for IE10 compatibility
+              setImmediate(fn);
+            };
+        }
+        else {
+            async.setImmediate = async.nextTick;
+        }
+    }
+
+    async.each = function (arr, iterator, callback) {
+        callback = callback || function () {};
+        if (!arr.length) {
+            return callback();
+        }
+        var completed = 0;
+        _each(arr, function (x) {
+            iterator(x, only_once(done) );
+        });
+        function done(err) {
+          if (err) {
+              callback(err);
+              callback = function () {};
+          }
+          else {
+              completed += 1;
+              if (completed >= arr.length) {
+                  callback();
+              }
+          }
+        }
+    };
+    async.forEach = async.each;
+
+    async.eachSeries = function (arr, iterator, callback) {
+        callback = callback || function () {};
+        if (!arr.length) {
+            return callback();
+        }
+        var completed = 0;
+        var iterate = function () {
+            iterator(arr[completed], function (err) {
+                if (err) {
+                    callback(err);
+                    callback = function () {};
+                }
+                else {
+                    completed += 1;
+                    if (completed >= arr.length) {
+                        callback();
+                    }
+                    else {
+                        iterate();
+                    }
+                }
+            });
+        };
+        iterate();
+    };
+    async.forEachSeries = async.eachSeries;
+
+    async.eachLimit = function (arr, limit, iterator, callback) {
+        var fn = _eachLimit(limit);
+        fn.apply(null, [arr, iterator, callback]);
+    };
+    async.forEachLimit = async.eachLimit;
+
+    var _eachLimit = function (limit) {
+
+        return function (arr, iterator, callback) {
+            callback = callback || function () {};
+            if (!arr.length || limit <= 0) {
+                return callback();
+            }
+            var completed = 0;
+            var started = 0;
+            var running = 0;
+
+            (function replenish () {
+                if (completed >= arr.length) {
+                    return callback();
+                }
+
+                while (running < limit && started < arr.length) {
+                    started += 1;
+                    running += 1;
+                    iterator(arr[started - 1], function (err) {
+                        if (err) {
+                            callback(err);
+                            callback = function () {};
+                        }
+                        else {
+                            completed += 1;
+                            running -= 1;
+                            if (completed >= arr.length) {
+                                callback();
+                            }
+                            else {
+                                replenish();
+                            }
+                        }
+                    });
+                }
+            })();
+        };
+    };
+
+
+    var doParallel = function (fn) {
+        return function () {
+            var args = Array.prototype.slice.call(arguments);
+            return fn.apply(null, [async.each].concat(args));
+        };
+    };
+    var doParallelLimit = function(limit, fn) {
+        return function () {
+            var args = Array.prototype.slice.call(arguments);
+            return fn.apply(null, [_eachLimit(limit)].concat(args));
+        };
+    };
+    var doSeries = function (fn) {
+        return function () {
+            var args = Array.prototype.slice.call(arguments);
+            return fn.apply(null, [async.eachSeries].concat(args));
+        };
+    };
+
+
+    var _asyncMap = function (eachfn, arr, iterator, callback) {
+        arr = _map(arr, function (x, i) {
+            return {index: i, value: x};
+        });
+        if (!callback) {
+            eachfn(arr, function (x, callback) {
+                iterator(x.value, function (err) {
+                    callback(err);
+                });
+            });
+        } else {
+            var results = [];
+            eachfn(arr, function (x, callback) {
+                iterator(x.value, function (err, v) {
+                    results[x.index] = v;
+                    callback(err);
+                });
+            }, function (err) {
+                callback(err, results);
+            });
+        }
+    };
+    async.map = doParallel(_asyncMap);
+    async.mapSeries = doSeries(_asyncMap);
+    async.mapLimit = function (arr, limit, iterator, callback) {
+        return _mapLimit(limit)(arr, iterator, callback);
+    };
+
+    var _mapLimit = function(limit) {
+        return doParallelLimit(limit, _asyncMap);
+    };
+
+    // reduce only has a series version, as doing reduce in parallel won't
+    // work in many situations.
+    async.reduce = function (arr, memo, iterator, callback) {
+        async.eachSeries(arr, function (x, callback) {
+            iterator(memo, x, function (err, v) {
+                memo = v;
+                callback(err);
+            });
+        }, function (err) {
+            callback(err, memo);
+        });
+    };
+    // inject alias
+    async.inject = async.reduce;
+    // foldl alias
+    async.foldl = async.reduce;
+
+    async.reduceRight = function (arr, memo, iterator, callback) {
+        var reversed = _map(arr, function (x) {
+            return x;
+        }).reverse();
+        async.reduce(reversed, memo, iterator, callback);
+    };
+    // foldr alias
+    async.foldr = async.reduceRight;
+
+    var _filter = function (eachfn, arr, iterator, callback) {
+        var results = [];
+        arr = _map(arr, function (x, i) {
+            return {index: i, value: x};
+        });
+        eachfn(arr, function (x, callback) {
+            iterator(x.value, function (v) {
+                if (v) {
+                    results.push(x);
+                }
+                callback();
+            });
+        }, function (err) {
+            callback(_map(results.sort(function (a, b) {
+                return a.index - b.index;
+            }), function (x) {
+                return x.value;
+            }));
+        });
+    };
+    async.filter = doParallel(_filter);
+    async.filterSeries = doSeries(_filter);
+    // select alias
+    async.select = async.filter;
+    async.selectSeries = async.filterSeries;
+
+    var _reject = function (eachfn, arr, iterator, callback) {
+        var results = [];
+        arr = _map(arr, function (x, i) {
+            return {index: i, value: x};
+        });
+        eachfn(arr, function (x, callback) {
+            iterator(x.value, function (v) {
+                if (!v) {
+                    results.push(x);
+                }
+                callback();
+            });
+        }, function (err) {
+            callback(_map(results.sort(function (a, b) {
+                return a.index - b.index;
+            }), function (x) {
+                return x.value;
+            }));
+        });
+    };
+    async.reject = doParallel(_reject);
+    async.rejectSeries = doSeries(_reject);
+
+    var _detect = function (eachfn, arr, iterator, main_callback) {
+        eachfn(arr, function (x, callback) {
+            iterator(x, function (result) {
+                if (result) {
+                    main_callback(x);
+                    main_callback = function () {};
+                }
+                else {
+                    callback();
+                }
+            });
+        }, function (err) {
+            main_callback();
+        });
+    };
+    async.detect = doParallel(_detect);
+    async.detectSeries = doSeries(_detect);
+
+    async.some = function (arr, iterator, main_callback) {
+        async.each(arr, function (x, callback) {
+            iterator(x, function (v) {
+                if (v) {
+                    main_callback(true);
+                    main_callback = function () {};
+                }
+                callback();
+            });
+        }, function (err) {
+            main_callback(false);
+        });
+    };
+    // any alias
+    async.any = async.some;
+
+    async.every = function (arr, iterator, main_callback) {
+        async.each(arr, function (x, callback) {
+            iterator(x, function (v) {
+                if (!v) {
+                    main_callback(false);
+                    main_callback = function () {};
+                }
+                callback();
+            });
+        }, function (err) {
+            main_callback(true);
+        });
+    };
+    // all alias
+    async.all = async.every;
+
+    async.sortBy = function (arr, iterator, callback) {
+        async.map(arr, function (x, callback) {
+            iterator(x, function (err, criteria) {
+                if (err) {
+                    callback(err);
+                }
+                else {
+                    callback(null, {value: x, criteria: criteria});
+                }
+            });
+        }, function (err, results) {
+            if (err) {
+                return callback(err);
+            }
+            else {
+                var fn = function (left, right) {
+                    var a = left.criteria, b = right.criteria;
+                    return a < b ? -1 : a > b ? 1 : 0;
+                };
+                callback(null, _map(results.sort(fn), function (x) {
+                    return x.value;
+                }));
+            }
+        });
+    };
+
+    async.auto = function (tasks, callback) {
+        callback = callback || function () {};
+        var keys = _keys(tasks);
+        var remainingTasks = keys.length
+        if (!remainingTasks) {
+            return callback();
+        }
+
+        var results = {};
+
+        var listeners = [];
+        var addListener = function (fn) {
+            listeners.unshift(fn);
+        };
+        var removeListener = function (fn) {
+            for (var i = 0; i < listeners.length; i += 1) {
+                if (listeners[i] === fn) {
+                    listeners.splice(i, 1);
+                    return;
+                }
+            }
+        };
+        var taskComplete = function () {
+            remainingTasks--
+            _each(listeners.slice(0), function (fn) {
+                fn();
+            });
+        };
+
+        addListener(function () {
+            if (!remainingTasks) {
+                var theCallback = callback;
+                // prevent final callback from calling itself if it errors
+                callback = function () {};
+
+                theCallback(null, results);
+            }
+        });
+
+        _each(keys, function (k) {
+            var task = _isArray(tasks[k]) ? tasks[k]: [tasks[k]];
+            var taskCallback = function (err) {
+                var args = Array.prototype.slice.call(arguments, 1);
+                if (args.length <= 1) {
+                    args = args[0];
+                }
+                if (err) {
+                    var safeResults = {};
+                    _each(_keys(results), function(rkey) {
+                        safeResults[rkey] = results[rkey];
+                    });
+                    safeResults[k] = args;
+                    callback(err, safeResults);
+                    // stop subsequent errors hitting callback multiple times
+                    callback = function () {};
+                }
+                else {
+                    results[k] = args;
+                    async.setImmediate(taskComplete);
+                }
+            };
+            var requires = task.slice(0, Math.abs(task.length - 1)) || [];
+            var ready = function () {
+                return _reduce(requires, function (a, x) {
+                    return (a && results.hasOwnProperty(x));
+                }, true) && !results.hasOwnProperty(k);
+            };
+            if (ready()) {
+                task[task.length - 1](taskCallback, results);
+            }
+            else {
+                var listener = function () {
+                    if (ready()) {
+                        removeListener(listener);
+                        task[task.length - 1](taskCallback, results);
+                    }
+                };
+                addListener(listener);
+            }
+        });
+    };
+
+    async.retry = function(times, task, callback) {
+        var DEFAULT_TIMES = 5;
+        var attempts = [];
+        // Use defaults if times not passed
+        if (typeof times === 'function') {
+            callback = task;
+            task = times;
+            times = DEFAULT_TIMES;
+        }
+        // Make sure times is a number
+        times = parseInt(times, 10) || DEFAULT_TIMES;
+        var wrappedTask = function(wrappedCallback, wrappedResults) {
+            var retryAttempt = function(task, finalAttempt) {
+                return function(seriesCallback) {
+                    task(function(err, result){
+                        seriesCallback(!err || finalAttempt, {err: err, result: result});
+                    }, wrappedResults);
+                };
+            };
+            while (times) {
+                attempts.push(retryAttempt(task, !(times-=1)));
+            }
+            async.series(attempts, function(done, data){
+                data = data[data.length - 1];
+                (wrappedCallback || callback)(data.err, data.result);
+            });
+        }
+        // If a callback is passed, run this as a controll flow
+        return callback ? wrappedTask() : wrappedTask
+    };
+
+    async.waterfall = function (tasks, callback) {
+        callback = callback || function () {};
+        if (!_isArray(tasks)) {
+          var err = new Error('First argument to waterfall must be an array of functions');
+          return callback(err);
+        }
+        if (!tasks.length) {
+            return callback();
+        }
+        var wrapIterator = function (iterator) {
+            return function (err) {
+                if (err) {
+                    callback.apply(null, arguments);
+                    callback = function () {};
+                }
+                else {
+                    var args = Array.prototype.slice.call(arguments, 1);
+                    var next = iterator.next();
+                    if (next) {
+                        args.push(wrapIterator(next));
+                    }
+                    else {
+                        args.push(callback);
+                    }
+                    async.setImmediate(function () {
+                        iterator.apply(null, args);
+                    });
+                }
+            };
+        };
+        wrapIterator(async.iterator(tasks))();
+    };
+
+    var _parallel = function(eachfn, tasks, callback) {
+        callback = callback || function () {};
+        if (_isArray(tasks)) {
+            eachfn.map(tasks, function (fn, callback) {
+                if (fn) {
+                    fn(function (err) {
+                        var args = Array.prototype.slice.call(arguments, 1);
+                        if (args.length <= 1) {
+                            args = args[0];
+                        }
+                        callback.call(null, err, args);
+                    });
+                }
+            }, callback);
+        }
+        else {
+            var results = {};
+            eachfn.each(_keys(tasks), function (k, callback) {
+                tasks[k](function (err) {
+                    var args = Array.prototype.slice.call(arguments, 1);
+                    if (args.length <= 1) {
+                        args = args[0];
+                    }
+                    results[k] = args;
+                    callback(err);
+                });
+            }, function (err) {
+                callback(err, results);
+            });
+        }
+    };
+
+    async.parallel = function (tasks, callback) {
+        _parallel({ map: async.map, each: async.each }, tasks, callback);
+    };
+
+    async.parallelLimit = function(tasks, limit, callback) {
+        _parallel({ map: _mapLimit(limit), each: _eachLimit(limit) }, tasks, callback);
+    };
+
+    async.series = function (tasks, callback) {
+        callback = callback || function () {};
+        if (_isArray(tasks)) {
+            async.mapSeries(tasks, function (fn, callback) {
+                if (fn) {
+                    fn(function (err) {
+                        var args = Array.prototype.slice.call(arguments, 1);
+                        if (args.length <= 1) {
+                            args = args[0];
+                        }
+                        callback.call(null, err, args);
+                    });
+                }
+            }, callback);
+        }
+        else {
+            var results = {};
+            async.eachSeries(_keys(tasks), function (k, callback) {
+                tasks[k](function (err) {
+                    var args = Array.prototype.slice.call(arguments, 1);
+                    if (args.length <= 1) {
+                        args = args[0];
+                    }
+                    results[k] = args;
+                    callback(err);
+                });
+            }, function (err) {
+                callback(err, results);
+            });
+        }
+    };
+
+    async.iterator = function (tasks) {
+        var makeCallback = function (index) {
+            var fn = function () {
+                if (tasks.length) {
+                    tasks[index].apply(null, arguments);
+                }
+                return fn.next();
+            };
+            fn.next = function () {
+                return (index < tasks.length - 1) ? makeCallback(index + 1): null;
+            };
+            return fn;
+        };
+        return makeCallback(0);
+    };
+
+    async.apply = function (fn) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        return function () {
+            return fn.apply(
+                null, args.concat(Array.prototype.slice.call(arguments))
+            );
+        };
+    };
+
+    var _concat = function (eachfn, arr, fn, callback) {
+        var r = [];
+        eachfn(arr, function (x, cb) {
+            fn(x, function (err, y) {
+                r = r.concat(y || []);
+                cb(err);
+            });
+        }, function (err) {
+            callback(err, r);
+        });
+    };
+    async.concat = doParallel(_concat);
+    async.concatSeries = doSeries(_concat);
+
+    async.whilst = function (test, iterator, callback) {
+        if (test()) {
+            iterator(function (err) {
+                if (err) {
+                    return callback(err);
+                }
+                async.whilst(test, iterator, callback);
+            });
+        }
+        else {
+            callback();
+        }
+    };
+
+    async.doWhilst = function (iterator, test, callback) {
+        iterator(function (err) {
+            if (err) {
+                return callback(err);
+            }
+            var args = Array.prototype.slice.call(arguments, 1);
+            if (test.apply(null, args)) {
+                async.doWhilst(iterator, test, callback);
+            }
+            else {
+                callback();
+            }
+        });
+    };
+
+    async.until = function (test, iterator, callback) {
+        if (!test()) {
+            iterator(function (err) {
+                if (err) {
+                    return callback(err);
+                }
+                async.until(test, iterator, callback);
+            });
+        }
+        else {
+            callback();
+        }
+    };
+
+    async.doUntil = function (iterator, test, callback) {
+        iterator(function (err) {
+            if (err) {
+                return callback(err);
+            }
+            var args = Array.prototype.slice.call(arguments, 1);
+            if (!test.apply(null, args)) {
+                async.doUntil(iterator, test, callback);
+            }
+            else {
+                callback();
+            }
+        });
+    };
+
+    async.queue = function (worker, concurrency) {
+        if (concurrency === undefined) {
+            concurrency = 1;
+        }
+        function _insert(q, data, pos, callback) {
+          if (!q.started){
+            q.started = true;
+          }
+          if (!_isArray(data)) {
+              data = [data];
+          }
+          if(data.length == 0) {
+             // call drain immediately if there are no tasks
+             return async.setImmediate(function() {
+                 if (q.drain) {
+                     q.drain();
+                 }
+             });
+          }
+          _each(data, function(task) {
+              var item = {
+                  data: task,
+                  callback: typeof callback === 'function' ? callback : null
+              };
+
+              if (pos) {
+                q.tasks.unshift(item);
+              } else {
+                q.tasks.push(item);
+              }
+
+              if (q.saturated && q.tasks.length === q.concurrency) {
+                  q.saturated();
+              }
+              async.setImmediate(q.process);
+          });
+        }
+
+        var workers = 0;
+        var q = {
+            tasks: [],
+            concurrency: concurrency,
+            saturated: null,
+            empty: null,
+            drain: null,
+            started: false,
+            paused: false,
+            push: function (data, callback) {
+              _insert(q, data, false, callback);
+            },
+            kill: function () {
+              q.drain = null;
+              q.tasks = [];
+            },
+            unshift: function (data, callback) {
+              _insert(q, data, true, callback);
+            },
+            process: function () {
+                if (!q.paused && workers < q.concurrency && q.tasks.length) {
+                    var task = q.tasks.shift();
+                    if (q.empty && q.tasks.length === 0) {
+                        q.empty();
+                    }
+                    workers += 1;
+                    var next = function () {
+                        workers -= 1;
+                        if (task.callback) {
+                            task.callback.apply(task, arguments);
+                        }
+                        if (q.drain && q.tasks.length + workers === 0) {
+                            q.drain();
+                        }
+                        q.process();
+                    };
+                    var cb = only_once(next);
+                    worker(task.data, cb);
+                }
+            },
+            length: function () {
+                return q.tasks.length;
+            },
+            running: function () {
+                return workers;
+            },
+            idle: function() {
+                return q.tasks.length + workers === 0;
+            },
+            pause: function () {
+                if (q.paused === true) { return; }
+                q.paused = true;
+                q.process();
+            },
+            resume: function () {
+                if (q.paused === false) { return; }
+                q.paused = false;
+                q.process();
+            }
+        };
+        return q;
+    };
+    
+    async.priorityQueue = function (worker, concurrency) {
+        
+        function _compareTasks(a, b){
+          return a.priority - b.priority;
+        };
+        
+        function _binarySearch(sequence, item, compare) {
+          var beg = -1,
+              end = sequence.length - 1;
+          while (beg < end) {
+            var mid = beg + ((end - beg + 1) >>> 1);
+            if (compare(item, sequence[mid]) >= 0) {
+              beg = mid;
+            } else {
+              end = mid - 1;
+            }
+          }
+          return beg;
+        }
+        
+        function _insert(q, data, priority, callback) {
+          if (!q.started){
+            q.started = true;
+          }
+          if (!_isArray(data)) {
+              data = [data];
+          }
+          if(data.length == 0) {
+             // call drain immediately if there are no tasks
+             return async.setImmediate(function() {
+                 if (q.drain) {
+                     q.drain();
+                 }
+             });
+          }
+          _each(data, function(task) {
+              var item = {
+                  data: task,
+                  priority: priority,
+                  callback: typeof callback === 'function' ? callback : null
+              };
+              
+              q.tasks.splice(_binarySearch(q.tasks, item, _compareTasks) + 1, 0, item);
+
+              if (q.saturated && q.tasks.length === q.concurrency) {
+                  q.saturated();
+              }
+              async.setImmediate(q.process);
+          });
+        }
+        
+        // Start with a normal queue
+        var q = async.queue(worker, concurrency);
+        
+        // Override push to accept second parameter representing priority
+        q.push = function (data, priority, callback) {
+          _insert(q, data, priority, callback);
+        };
+        
+        // Remove unshift function
+        delete q.unshift;
+
+        return q;
+    };
+
+    async.cargo = function (worker, payload) {
+        var working     = false,
+            tasks       = [];
+
+        var cargo = {
+            tasks: tasks,
+            payload: payload,
+            saturated: null,
+            empty: null,
+            drain: null,
+            drained: true,
+            push: function (data, callback) {
+                if (!_isArray(data)) {
+                    data = [data];
+                }
+                _each(data, function(task) {
+                    tasks.push({
+                        data: task,
+                        callback: typeof callback === 'function' ? callback : null
+                    });
+                    cargo.drained = false;
+                    if (cargo.saturated && tasks.length === payload) {
+                        cargo.saturated();
+                    }
+                });
+                async.setImmediate(cargo.process);
+            },
+            process: function process() {
+                if (working) return;
+                if (tasks.length === 0) {
+                    if(cargo.drain && !cargo.drained) cargo.drain();
+                    cargo.drained = true;
+                    return;
+                }
+
+                var ts = typeof payload === 'number'
+                            ? tasks.splice(0, payload)
+                            : tasks.splice(0, tasks.length);
+
+                var ds = _map(ts, function (task) {
+                    return task.data;
+                });
+
+                if(cargo.empty) cargo.empty();
+                working = true;
+                worker(ds, function () {
+                    working = false;
+
+                    var args = arguments;
+                    _each(ts, function (data) {
+                        if (data.callback) {
+                            data.callback.apply(null, args);
+                        }
+                    });
+
+                    process();
+                });
+            },
+            length: function () {
+                return tasks.length;
+            },
+            running: function () {
+                return working;
+            }
+        };
+        return cargo;
+    };
+
+    var _console_fn = function (name) {
+        return function (fn) {
+            var args = Array.prototype.slice.call(arguments, 1);
+            fn.apply(null, args.concat([function (err) {
+                var args = Array.prototype.slice.call(arguments, 1);
+                if (typeof console !== 'undefined') {
+                    if (err) {
+                        if (console.error) {
+                            console.error(err);
+                        }
+                    }
+                    else if (console[name]) {
+                        _each(args, function (x) {
+                            console[name](x);
+                        });
+                    }
+                }
+            }]));
+        };
+    };
+    async.log = _console_fn('log');
+    async.dir = _console_fn('dir');
+    /*async.info = _console_fn('info');
+    async.warn = _console_fn('warn');
+    async.error = _console_fn('error');*/
+
+    async.memoize = function (fn, hasher) {
+        var memo = {};
+        var queues = {};
+        hasher = hasher || function (x) {
+            return x;
+        };
+        var memoized = function () {
+            var args = Array.prototype.slice.call(arguments);
+            var callback = args.pop();
+            var key = hasher.apply(null, args);
+            if (key in memo) {
+                async.nextTick(function () {
+                    callback.apply(null, memo[key]);
+                });
+            }
+            else if (key in queues) {
+                queues[key].push(callback);
+            }
+            else {
+                queues[key] = [callback];
+                fn.apply(null, args.concat([function () {
+                    memo[key] = arguments;
+                    var q = queues[key];
+                    delete queues[key];
+                    for (var i = 0, l = q.length; i < l; i++) {
+                      q[i].apply(null, arguments);
+                    }
+                }]));
+            }
+        };
+        memoized.memo = memo;
+        memoized.unmemoized = fn;
+        return memoized;
+    };
+
+    async.unmemoize = function (fn) {
+      return function () {
+        return (fn.unmemoized || fn).apply(null, arguments);
+      };
+    };
+
+    async.times = function (count, iterator, callback) {
+        var counter = [];
+        for (var i = 0; i < count; i++) {
+            counter.push(i);
+        }
+        return async.map(counter, iterator, callback);
+    };
+
+    async.timesSeries = function (count, iterator, callback) {
+        var counter = [];
+        for (var i = 0; i < count; i++) {
+            counter.push(i);
+        }
+        return async.mapSeries(counter, iterator, callback);
+    };
+
+    async.seq = function (/* functions... */) {
+        var fns = arguments;
+        return function () {
+            var that = this;
+            var args = Array.prototype.slice.call(arguments);
+            var callback = args.pop();
+            async.reduce(fns, args, function (newargs, fn, cb) {
+                fn.apply(that, newargs.concat([function () {
+                    var err = arguments[0];
+                    var nextargs = Array.prototype.slice.call(arguments, 1);
+                    cb(err, nextargs);
+                }]))
+            },
+            function (err, results) {
+                callback.apply(that, [err].concat(results));
+            });
+        };
+    };
+
+    async.compose = function (/* functions... */) {
+      return async.seq.apply(null, Array.prototype.reverse.call(arguments));
+    };
+
+    var _applyEach = function (eachfn, fns /*args...*/) {
+        var go = function () {
+            var that = this;
+            var args = Array.prototype.slice.call(arguments);
+            var callback = args.pop();
+            return eachfn(fns, function (fn, cb) {
+                fn.apply(that, args.concat([cb]));
+            },
+            callback);
+        };
+        if (arguments.length > 2) {
+            var args = Array.prototype.slice.call(arguments, 2);
+            return go.apply(this, args);
+        }
+        else {
+            return go;
+        }
+    };
+    async.applyEach = doParallel(_applyEach);
+    async.applyEachSeries = doSeries(_applyEach);
+
+    async.forever = function (fn, callback) {
+        function next(err) {
+            if (err) {
+                if (callback) {
+                    return callback(err);
+                }
+                throw err;
+            }
+            fn(next);
+        }
+        next();
+    };
+
+    // Node.js
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = async;
+    }
+    // AMD / RequireJS
+    else if (typeof define !== 'undefined' && define.amd) {
+        define([], function () {
+            return async;
+        });
+    }
+    // included directly via <script> tag
+    else {
+        root.async = async;
+    }
+
+}());
+
+}).call(this,require('_process'))
+},{"_process":"/usr/local/lib/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/usr/local/lib/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js":[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
