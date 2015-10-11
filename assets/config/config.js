@@ -17,6 +17,7 @@ SCATTER.config = {
     defaultPointSizeHighlight: 5,
     defaultOpacity: 0.25,
     defaultLegendOpacity: 0.75,
+    defaultGridOpacity: 0.2,
     defaultTransitionSpeed: 50,
     defaultHighlightThreshold: 5,
 

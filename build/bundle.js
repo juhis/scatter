@@ -21,12 +21,13 @@ var prevTargetPointSize = {size: config.defaultPointSizeAnnotated}
 var effectController, stats
 var uniforms, shaderMaterial
 var legendPlane, legendUniforms, legendShaderMaterial
+var lineMaterial
 
 var scale = 10
 var colorAnnotated = new THREE.Color().setHSL(config.hueAnnotated, config.saturationAnnotated, config.lightnessAnnotated)
 var colorNotAnnotated = new THREE.Color().setHSL(config.hueNotAnnotated, config.saturationNotAnnotated, config.lightnessNotAnnotated)
 
-var pointCloud, axes, labels
+var pointCloud, axes, grid, labels
 var destinations = [], annotations = [], prevAnnotations = [], annotationType = null
 
 var mouse = {
@@ -147,9 +148,79 @@ function drawLegendPlane() {
     legendScene.add(legendPlane)
 }
 
-function drawHelperBox() {
+function drawLine(v1, v2) {
+    var geometry = new THREE.Geometry()
+    geometry.vertices.push(new THREE.Vector3(v1[0], v1[1], v1[2]),
+                           new THREE.Vector3(v2[0], v2[1], v2[2]))
+    var line = new THREE.Line(geometry, lineMaterial)
+    grid.add(line)
+}
 
+function drawGrid() {
+
+    grid = new THREE.Object3D()
+    lineMaterial = new THREE.LineBasicMaterial({color: 0xffffff, opacity: config.defaultGridOpacity, transparent: true})
+
+    drawLine([-scale, 0, 0],
+             [scale, 0, 0])
+    drawLine([0, -scale, 0],
+             [0, scale, 0])
+    drawLine([0, 0, -scale],
+             [0, 0, scale])
     
+    drawLine([-scale, -scale, -scale],
+             [-scale, -scale, scale])
+    drawLine([-scale, -scale, -scale],
+             [-scale, scale, -scale])
+    drawLine([-scale, -scale, -scale],
+             [scale, -scale, -scale])
+    drawLine([scale, scale, scale],
+             [scale, scale, -scale])
+    drawLine([scale, scale, scale],
+             [scale, -scale, scale])
+    drawLine([scale, scale, scale],
+             [-scale, scale, scale])
+    drawLine([scale, -scale, scale],
+             [-scale, -scale, scale])
+    drawLine([scale, -scale, scale],
+             [scale, -scale, -scale])
+    drawLine([-scale, scale, scale],
+             [-scale, -scale, scale])
+    drawLine([-scale, scale, scale],
+             [-scale, scale, -scale])
+    drawLine([scale, scale, -scale],
+             [scale, -scale, -scale])
+    drawLine([scale, scale, -scale],
+             [-scale, scale, -scale])
+
+    drawLine([-scale, -scale, 0],
+             [scale, -scale, 0])
+    drawLine([-scale, -scale, 0],
+             [-scale, scale, 0])
+    drawLine([scale, -scale, 0],
+             [scale, scale, 0])
+    drawLine([-scale, scale, 0],
+             [scale, scale, 0])
+
+    drawLine([0, -scale, -scale],
+             [0, -scale, scale])
+    drawLine([0, -scale, -scale],
+             [0, scale, -scale])
+    drawLine([0, scale, scale],
+             [0, -scale, scale])
+    drawLine([0, scale, scale],
+             [0, scale, -scale])
+
+    drawLine([-scale, 0, -scale],
+             [scale, 0, -scale])
+    drawLine([-scale, 0, -scale],
+             [-scale, 0, scale])
+    drawLine([scale, 0, scale],
+             [scale, 0, -scale])
+    drawLine([scale, 0, scale],
+             [-scale, 0, scale])
+
+    scene.add(grid)
 }
 
 function drawAxes() {
@@ -297,7 +368,7 @@ function init(width, height) {
         vertexShader:   document.getElementById('vertexShader').textContent,
         fragmentShader: document.getElementById('fragmentShader').textContent,
         transparent:    true,
-        depthTest:      false,
+        depthTest:      true,
         blending:       THREE.NormalBlending
     })
 }
@@ -318,10 +389,12 @@ function setupGUI() {
         saturationNotAnnotated: colorNotAnnotated.getHSL().s,
         lightnessNotAnnotated: colorNotAnnotated.getHSL().l,
         
-        showFPS: false,
         showProjections: false,
-        showAxes: false,
         showLabels: false,
+        showGrid: false,
+        gridOpacity: config.defaultGridOpacity,
+        showAxes: false,
+        showFPS: false,
 
         highlight: true,
         highlightAnnotations: true,
@@ -333,15 +406,15 @@ function setupGUI() {
         
         transitionSpeed: config.defaultTransitionSpeed,
         legendOpacity: config.defaultLegendOpacity,
-        depthTest: false,
+        depthTest: true,
         additiveBlending: false,
     }
     
     var gui = new dat.GUI()
     folder = gui.addFolder('Points')
-    folder.add(effectController, 'pointSize', 1, 10).name('PointSize')
-    folder.add(effectController, 'pointSizeAnnotated', 1, 10).name('PointSizeAnnotated')
-    folder.add(effectController, 'pointSizeHighlight', 1, 10).name('PointSizeHighlight')
+    folder.add(effectController, 'pointSize', 1, 10).name('Size')
+    folder.add(effectController, 'pointSizeAnnotated', 1, 10).name('SizeAnnotated')
+    folder.add(effectController, 'pointSizeHighlight', 1, 10).name('SizeHighlighted')
     folder.add(effectController, 'opacity', 0, 1).name('Opacity')    
     var folder = gui.addFolder('Colors')
     folder.add(effectController, 'hueAnnotated', 0, 1).name('HueAnnotated')
@@ -351,13 +424,15 @@ function setupGUI() {
     folder.add(effectController, 'saturationNotAnnotated', 0, 1).name('SaturationNotAnnotated')
     folder.add(effectController, 'lightnessNotAnnotated', 0, 1).name('LightnessNotAnnotated')
     folder = gui.addFolder('Show')
-    folder.add(effectController, 'showProjections').name('ShowProjections')
-    folder.add(effectController, 'showAxes').name('ShowAxes')
-    folder.add(effectController, 'showLabels').name('ShowLabels')
-    folder.add(effectController, 'showFPS').name('ShowFPS')
-    folder = gui.addFolder('Highlight')
-    folder.add(effectController, 'highlight').name('Highlight')
-    folder.add(effectController, 'highlightAnnotations').name('HighlightAnnotations')
+    folder.add(effectController, 'showProjections').name('Projections')
+    folder.add(effectController, 'showLabels').name('ProjectionLabels')
+    folder.add(effectController, 'showGrid').name('Grid')
+    folder.add(effectController, 'gridOpacity', 0, 1).name('GridOpacity')
+    folder.add(effectController, 'showAxes').name('Axes')
+    folder.add(effectController, 'showFPS').name('FPS')
+    folder = gui.addFolder('Mouse tracking')
+    folder.add(effectController, 'highlight').name('Track mouse')
+    folder.add(effectController, 'highlightAnnotations').name('ShowAnnotations')
     folder.add(effectController, 'highlightThreshold', 0, 20).name('Threshold')
     folder = gui.addFolder('Head tracking')
     folder.add(effectController, 'headtracking').name('Track head')
@@ -535,6 +610,8 @@ function render() {
     
     shaderMaterial.blending = effectController.additiveBlending ? THREE.AdditiveBlending : THREE.NormalBlending
     shaderMaterial.depthTest = effectController.depthTest
+    grid.visible = effectController.showGrid
+    lineMaterial.opacity = effectController.gridOpacity
     axes.visible = effectController.showAxes
     labels.visible = effectController.showLabels
     stats.domElement.style.visibility = effectController.showFPS ? 'visible' : 'hidden'
@@ -858,7 +935,7 @@ var Scatter = {
         init(width, height)
         //TODO
         //drawLegendPlane()
-        drawHelperBox()
+        drawGrid()
         drawAxes()
         drawTexts()
         fillScene(dataX, dataY, dataZ)
