@@ -10,11 +10,17 @@
       margin: 0px;
       overflow: hidden;
       }
+      video {
+      position: absolute;
+      bottom: 0px;
+      right: 0px;
+      }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r72/three.min.js"></script>
     <script src="lib/Tween.js"></script>
     <script src="lib/Detector.js"></script>
     <script src="lib/OrbitControls.js"></script>
+    <script src="lib/headtrackr.min.js"></script>
     <script src="lib/stats.min.js"></script>
     <script src="lib/dat.gui.min.js"></script>
     <script src="lib/helvetiker_regular.typeface.js"></script>
@@ -67,6 +73,8 @@
       }
     </script>
     
+    <canvas id="inputCanvas" width="320" height="240" style="display:none"></canvas>
+    <video id="inputVideo" autoplay loop></video>
     <div id="content" />
     <script src="build/bundle.js"></script>
     

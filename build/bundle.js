@@ -37,6 +37,14 @@ var mouse = {
     isDown: false
 }
 
+var head = {
+    x: -1,
+    y: -1,
+    prevX: -1,
+    prevY: -1,
+    tracker: null
+}
+
 var raycaster = new THREE.Raycaster()
 raycaster.params.Points.threshold = config.defaultHighlightThreshold / scale
 
@@ -318,6 +326,10 @@ function setupGUI() {
         highlight: true,
         highlightAnnotations: true,
         highlightThreshold: config.defaultHighlightThreshold,
+
+        headtracking: false,
+        headXSensitivity: config.defaultHeadXSensitivity,
+        headYSensitivity: config.defaultHeadYSensitivity,
         
         transitionSpeed: config.defaultTransitionSpeed,
         legendOpacity: config.defaultLegendOpacity,
@@ -347,12 +359,54 @@ function setupGUI() {
     folder.add(effectController, 'highlight').name('Highlight')
     folder.add(effectController, 'highlightAnnotations').name('HighlightAnnotations')
     folder.add(effectController, 'highlightThreshold', 0, 20).name('Threshold')
+    folder = gui.addFolder('Head tracking')
+    folder.add(effectController, 'headtracking').name('Track head')
+        .onChange(function(value) {
+            if (value) {
+                if (!head.tracker) {
+                    setupHeadTracker()
+                }
+                cameraControls.enabled = false
+                camera.position.set(0, 0, 4 * scale)
+                pointCloud.rotation.set(0, 0, 0)
+                head.tracker.start()
+                document.getElementById('inputVideo').style.display = 'block'
+            } else {
+                cameraControls.enabled = true
+                camera.position.set(0, 0, 4 * scale)
+                pointCloud.rotation.set(0, 0, 0)
+                head.tracker.stop()
+                document.getElementById('inputVideo').style.display = 'none'
+            }
+        })
+    folder.add(effectController, 'headXSensitivity', 0, 20).name('XSensitivity')
+    folder.add(effectController, 'headYSensitivity', 0, 20).name('YSensitivity')
     folder = gui.addFolder('Other')
     folder.add(effectController, 'transitionSpeed', 1, 100).name('TransitionSpeed')
     folder.add(effectController, 'legendOpacity', 0, 1).name('LegendOpacity')
     folder.add(effectController, 'depthTest').name('DepthTest')
     folder.add(effectController, 'additiveBlending').name('AdditiveBlending')
 }
+
+function setupHeadTracker() {
+
+    head.tracker = new headtrackr.Tracker({ui: true, headPosition: true})
+    head.tracker.init(document.getElementById('inputVideo'), document.getElementById('inputCanvas'))
+    document.addEventListener('headtrackingEvent', function(e) {
+        head.prevX = head.x
+        head.prevY = head.y
+        head.x = e.x
+        head.y = e.y
+        var dx = head.x - head.prevX
+        if (Math.abs(dx) < 3) {
+            pointCloud.rotation.y += dx / 100 * effectController.headXSensitivity
+        }
+        var dy = head.y - head.prevY
+        if (Math.abs(dy) < 3) {
+            pointCloud.rotation.x -= dy / 100 * effectController.headYSensitivity
+        }
+    })
+}    
 
 function addToDOM(domElement) {
 
@@ -716,6 +770,18 @@ function handleKeypress(e) {
     }
 }
 
+function handleMousemove(e) {
+    var width = renderer.getSize().width
+    var height = renderer.getSize().height
+    if (effectController.showProjections) {
+        height *= 2 / 3
+    }
+    mouse.prevX = mouse.x
+    mouse.prevY = mouse.y
+    mouse.x = ((e.clientX - document.getElementById('menu').offsetWidth) / width) * 2 - 1
+    mouse.y = -(e.clientY / height) * 2 + 1
+}
+
 function raycast(e) {
 
     if (!effectController.highlight) return
@@ -802,17 +868,7 @@ var Scatter = {
         animate()
 
         document.onkeypress = handleKeypress
-        document.onmousemove = function(e) {
-            var width = renderer.getSize().width
-            var height = renderer.getSize().height
-            if (effectController.showProjections) {
-                height *= 2 / 3
-            }
-            mouse.prevX = mouse.x
-            mouse.prevY = mouse.y
-            mouse.x = ((e.clientX - document.getElementById('menu').offsetWidth) / width) * 2 - 1
-            mouse.y = -(e.clientY / height) * 2 + 1
-        }
+        document.onmousemove = handleMousemove
 
         console.log('scatterplot initialized')
     },

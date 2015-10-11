@@ -28,5 +28,7 @@ SCATTER.config = {
     hueNotAnnotated: 0.5,
     saturationNotAnnotated: 0.8,
     lightnessNotAnnotated: 1,
-    
+
+    defaultHeadXSensitivity: 8,
+    defaultHeadYSensitivity: 8,
 }
