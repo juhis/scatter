@@ -5,8 +5,8 @@ var superagent = require('superagent')
 var config = require('../../config/config.js')
 
 var react
-var scene, renderer
-var camera, projectionCameras, cameraControls
+var scene, legendScene, renderer
+var camera, projectionCameras, legendCamera, cameraControls
 var isAnimating = false, isRecording = false, animationId, savedFrames = []
 var targetHSL = {h: config.hueAnnotated, s: config.saturationAnnotated, l: 1}
 var targetPointSize = {size: config.defaultPointSize}
@@ -14,14 +14,27 @@ var prevTargetHSL = {h: config.hueAnnotated, s: config.saturationAnnotated, l: 0
 var prevTargetPointSize = {size: config.defaultPointSizeAnnotated}
 
 var effectController, stats
-var attributes, uniforms, shaderMaterial
+var uniforms, shaderMaterial
+var legendPlane, legendUniforms, legendShaderMaterial
 
 var scale = 10
 var colorAnnotated = new THREE.Color().setHSL(config.hueAnnotated, config.saturationAnnotated, config.lightnessAnnotated)
 var colorNotAnnotated = new THREE.Color().setHSL(config.hueNotAnnotated, config.saturationNotAnnotated, config.lightnessNotAnnotated)
 
 var pointCloud, axes, labels
-var destinations = [], annotations = [], prevAnnotations = [], annotationType = null, customValue = []
+var destinations = [], annotations = [], prevAnnotations = [], annotationType = null
+
+var mouse = {
+    x: -1,
+    y: -1,
+    prevX: -1,
+    prevY: -1,
+    isDown: false
+}
+
+var raycaster = new THREE.Raycaster()
+raycaster.params.Points.threshold = config.defaultHighlightThreshold / scale
+
 var clock = new THREE.Clock()
 
 function printPerformance() {
@@ -78,6 +91,52 @@ function drawTexts() {
     labels.add(text)
 
     scene.add(labels)
+}
+
+function drawLegendPlane() {
+
+    var geometry = new THREE.BufferGeometry()
+    var vertexAttribute = new THREE.Float32Attribute(2 * 3 * 3, 3)
+    vertexAttribute.setXYZ(0, 0, 0, 0) // top left
+    vertexAttribute.setXYZ(1, 0, 1, 0) // bottom left
+    vertexAttribute.setXYZ(2, 1, 1, 0) // bottom right
+    vertexAttribute.setXYZ(3, 1, 1, 0) // bottom right
+    vertexAttribute.setXYZ(4, 1, 0, 0) // top right
+    vertexAttribute.setXYZ(5, 0, 0, 0) // top left
+    
+    legendUniforms = {
+	uColor: {type: 'c', value: []},
+        opacity: {type: 'f', value: config.defaultLegendOpacity}
+    }
+
+    var color = new THREE.Color().setRGB(0, 1, 1)
+    var colorAttribute = new THREE.Float32Attribute(vertexAttribute.count * 3, 3)
+    for (var i = 0; i < vertexAttribute.count; i++) {
+	legendUniforms.uColor.value.push(new THREE.Color().setHSL(Math.random(), Math.random(), Math.random()))
+	colorAttribute.setXYZ(i, color.r, color.g * Math.random(), color.b)
+    }
+    geometry.addAttribute('position', vertexAttribute)
+    geometry.addAttribute('color', colorAttribute)
+
+    legendShaderMaterial = new THREE.ShaderMaterial({
+        uniforms:       legendUniforms,
+        vertexShader:   document.getElementById('legendVertexShader').textContent,
+        fragmentShader: document.getElementById('legendFragmentShader').textContent,
+        transparent:    true,
+        depthTest:      false,
+        blending:       THREE.NormalBlending
+    })
+
+    legendPlane = new THREE.Mesh(geometry, legendShaderMaterial)
+    legendPlane.position.set(0, -scale / 20, 0)
+
+    legendScene = new THREE.Scene()
+    legendScene.add(legendPlane)
+}
+
+function drawHelperBox() {
+
+    
 }
 
 function drawAxes() {
@@ -139,28 +198,29 @@ function drawAxes() {
 
 function fillScene(dataX, dataY, dataZ) {
 
-    var dotColors = [
-        new THREE.Color().setHSL(0.2, 0.8, 0.8),
-        new THREE.Color().setHSL(0.4, 0.8, 0.8),
-        new THREE.Color().setHSL(0.7, 0.8, 0.8),
-    ]
-
-    var geometry = new THREE.Geometry()
-    geometry.colors = []
-    for (var i = 0; i < dataX.length; i++) {
-	var vertex = new THREE.Vector3()
-        vertex.x = 2 * scale * (dataX[i] / 65535 - 0.5)
-        vertex.y = 2 * scale * (dataY[i] / 65535 - 0.5)
-        vertex.z = 2 * scale * (dataZ[i] / 65535 - 0.5)
-	geometry.vertices.push(vertex)
-        attributes.size.value.push(config.defaultPointSize)
-        attributes.customColor.value.push(colorNotAnnotated)
-        customValue.push(1)
+    var numPoints = dataX.length
+    var geometry = new THREE.BufferGeometry()
+    var positions = new Float32Array(numPoints * 3)
+    var colors = new Float32Array(numPoints * 3)
+    var sizes = new Float32Array(numPoints)
+    var customs = new Float32Array(numPoints)
+    for (var i = 0, i3 = 0; i < numPoints; i++, i3 += 3) {
+	positions[i3] = 2 * scale * (dataX[i] / 65535 - 0.5)
+	positions[i3 + 1] = 2 * scale * (dataY[i] / 65535 - 0.5)
+	positions[i3 + 2] = 2 * scale * (dataZ[i] / 65535 - 0.5)
+	colors[i3] = colorNotAnnotated.r
+	colors[i3 + 1] = colorNotAnnotated.g
+	colors[i3 + 2] = colorNotAnnotated.b
+	sizes[i] = config.defaultPointSize
+	customs[i] = 1
     }
+    geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3))
+    geometry.addAttribute('size', new THREE.BufferAttribute(sizes, 1))
+    geometry.addAttribute('custom', new THREE.BufferAttribute(customs, 1))
     
-    pointCloud = new THREE.PointCloud(geometry, shaderMaterial)
+    pointCloud = new THREE.Points(geometry, shaderMaterial)
     scene.add(pointCloud)
-
 }
 
 function init(width, height) {
@@ -202,68 +262,60 @@ function init(width, height) {
         }
         projectionCameras.push(cam)
     }
+
+    legendCamera = new THREE.OrthographicCamera(
+            -aspectRatio, aspectRatio, // lr
+            -aspectRatio / (width / height), aspectRatio / (width / height), // tb
+    	    -10, 10 // nf
+    )
+    legendCamera.position.set(0, 0, -1)
     
     // CONTROLS
     cameraControls = new THREE.OrbitControls(camera, renderer.domElement)
     cameraControls.noPan = true
-    cameraControls.target.set(0,0,0)
+    cameraControls.target.set(0, 0, 0)
 
     // SHADING
-    attributes = {
-        size: {type: 'f', value: []},
-        customColor: {type: 'c', value: []},
-    }
     uniforms = {
-        color: {type: 'c', value: new THREE.Color(0xffffff)},
-        opacity: {type: 'f', value: 0.5}
+        opacity: {type: 'f', value: config.defaultOpacity}
     }
-    
-    var vertexShader = 'attribute float size;' +
-        'attribute vec3 customColor;' +
-        'varying vec3 vColor;' +
-        'void main() {' +
-        'vColor = customColor;' +
-        'vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );' +
-        'gl_PointSize = size;' +
-        'gl_Position = projectionMatrix * mvPosition;' +
-        '}'
-
-    var fragmentShader = 'uniform vec3 color;' +
-        'uniform float opacity;' +
-        'varying vec3 vColor;' +
-        'void main() {' +
-        'gl_FragColor = vec4( color * vColor, opacity );' +
-        '}'
-    
     shaderMaterial = new THREE.ShaderMaterial({
         uniforms:       uniforms,
-        attributes:     attributes,
-        vertexShader:   vertexShader,
-        fragmentShader: fragmentShader,
+        vertexShader:   document.getElementById('vertexShader').textContent,
+        fragmentShader: document.getElementById('fragmentShader').textContent,
         transparent:    true,
         depthTest:      false,
-        blending:       THREE.NormalBlending,
+        blending:       THREE.NormalBlending
     })
 }
 
 function setupGUI() {
     
     effectController = {
+
         pointSize: config.defaultPointSize,
         pointSizeAnnotated: config.defaultPointSizeAnnotated,
+	pointSizeHighlight: config.defaultPointSizeHighlight,
+        opacity: config.defaultOpacity,
+	
         hueAnnotated: colorAnnotated.getHSL().h,
         saturationAnnotated: colorAnnotated.getHSL().s,
         lightnessAnnotated: colorAnnotated.getHSL().l,
         hueNotAnnotated: colorNotAnnotated.getHSL().h,
         saturationNotAnnotated: colorNotAnnotated.getHSL().s,
         lightnessNotAnnotated: colorNotAnnotated.getHSL().l,
-        opacity: config.defaultOpacity,
-        transitionSpeed: config.defaultTransitionSpeed,
-        animationSpeed: config.defaultAnimationSpeed,
+	
 	showFPS: false,
 	showProjections: false,
         showAxes: false,
         showLabels: false,
+
+	highlight: true,
+	highlightAnnotations: true,
+	highlightThreshold: config.defaultHighlightThreshold,
+	
+        transitionSpeed: config.defaultTransitionSpeed,
+        legendOpacity: config.defaultLegendOpacity,
         depthTest: false,
         additiveBlending: false,
     }
@@ -272,6 +324,7 @@ function setupGUI() {
     folder = gui.addFolder('Points')
     folder.add(effectController, 'pointSize', 1, 10).name('PointSize')
     folder.add(effectController, 'pointSizeAnnotated', 1, 10).name('PointSizeAnnotated')
+    folder.add(effectController, 'pointSizeHighlight', 1, 10).name('PointSizeHighlight')
     folder.add(effectController, 'opacity', 0, 1).name('Opacity')    
     var folder = gui.addFolder('Colors')
     folder.add(effectController, 'hueAnnotated', 0, 1).name('HueAnnotated')
@@ -285,9 +338,13 @@ function setupGUI() {
     folder.add(effectController, 'showAxes').name('ShowAxes')
     folder.add(effectController, 'showLabels').name('ShowLabels')
     folder.add(effectController, 'showFPS').name('ShowFPS')
+    folder = gui.addFolder('Highlight')
+    folder.add(effectController, 'highlight').name('Highlight')
+    folder.add(effectController, 'highlightAnnotations').name('HighlightAnnotations')
+    folder.add(effectController, 'highlightThreshold', 0, 10).name('Threshold')
     folder = gui.addFolder('Other')
     folder.add(effectController, 'transitionSpeed', 1, 100).name('TransitionSpeed')
-    folder.add(effectController, 'animationSpeed', 1, 100).name('AnimationSpeed')
+    folder.add(effectController, 'legendOpacity', 0, 1).name('LegendOpacity')
     folder.add(effectController, 'depthTest').name('DepthTest')
     folder.add(effectController, 'additiveBlending').name('AdditiveBlending')
 }
@@ -299,10 +356,6 @@ function addToDOM(domElement) {
 	domElement.removeChild(canvas[0])
     }
     domElement.appendChild(renderer.domElement)
-
-    var w = window.innerWidth - ((document.getElementById('menu') && document.getElementById('menu').offsetWidth) || 100)
-    var h = window.innerHeight
-    renderer.setSize(w, h)
 
     stats = new Stats()
     stats.domElement.style.position = 'absolute'
@@ -333,8 +386,9 @@ function render() {
     stats.update()
     
     uniforms.opacity.value = effectController.opacity
+    //legendUniforms.opacity.value = effectController.legendOpacity
     var hsl = colorAnnotated.getHSL()
-
+    
     if (!isAnimating) {
 	colorAnnotated = new THREE.Color().setHSL(effectController.hueAnnotated, effectController.saturationAnnotated, effectController.lightnessAnnotated)
     }
@@ -342,58 +396,83 @@ function render() {
 
     var targetHSLColor = new THREE.Color().setHSL(targetHSL.h, targetHSL.s, targetHSL.l)
     var prevTargetHSLColor = new THREE.Color().setHSL(prevTargetHSL.h, prevTargetHSL.s, prevTargetHSL.l)
-    for (var i = 0; i < pointCloud.geometry.vertices.length; i++) {
 
-        var v = pointCloud.geometry.vertices[i]
-        if (annotations || prevAnnotations) {
-            if (annotations && annotationType == 'continuous') {
-                var h = hsl.h + customValue[i]
-                attributes.customColor.value[i] = new THREE.Color().setHSL(h, hsl.s, hsl.l)
-                attributes.size.value[i] = effectController.pointSize
-            } else if (annotations && annotations[i] === 1) {
-		attributes.customColor.value[i] = isAnimating ? targetHSLColor : colorAnnotated
-		attributes.size.value[i] = isAnimating ? targetPointSize.size : effectController.pointSizeAnnotated
-            } else if (isAnimating && prevAnnotations && prevAnnotations[i] === 1) {
-		attributes.customColor.value[i] = prevTargetHSLColor
-		attributes.size.value[i] = prevTargetPointSize.size
-	    } else {
-                attributes.customColor.value[i] = colorNotAnnotated
-                attributes.size.value[i] = effectController.pointSize
-            }
-        } else {
-            attributes.customColor.value[i] = colorNotAnnotated
-            attributes.size.value[i] = effectController.pointSize
+    //TODO legend
+    // if (annotations && annotationType == 'continuous') {
+    // 	var legendColors = legendPlane.geometry.attributes.color.array
+    //     var h = hsl.h
+    // 	var color = new THREE.Color().setHSL(h, hsl.s, hsl.l)
+    // 	for (var i3 = 0; i3 < legendColors.length; i3 += 3) {
+    // 	    legendColors[i] = color.r
+    // 	    legendColors[i + 1] = color.g * Math.random()
+    // 	    legendColors[i + 2] = color.b
+    // 	}
+    // 	legendPlane.geometry.attributes.color.needsUpdate = true
+    // }
+
+    var positions = pointCloud.geometry.attributes.position.array
+    var sizes = pointCloud.geometry.attributes.size.array
+    var colors = pointCloud.geometry.attributes.color.array
+    var customs = pointCloud.geometry.attributes.custom.array
+    
+    for (var i = 0, i3 = 0; i < sizes.length; i++, i3 += 3) {
+
+        if (annotations && annotationType == 'continuous') {
+            var h = hsl.h - customs[i] * config.continuousAnnotationScale
+	    var color = new THREE.Color().setHSL(h, hsl.s, hsl.l)
+            colors[i3] = color.r
+            colors[i3 + 1] = color.g
+            colors[i3 + 2] = color.b
+            sizes[i] = effectController.pointSize
+        } else if (annotations && annotations[i] === 1) {
+	    colors[i3] = isAnimating ? targetHSLColor.r : colorAnnotated.r
+	    colors[i3 + 1] = isAnimating ? targetHSLColor.g : colorAnnotated.g
+	    colors[i3 + 2] = isAnimating ? targetHSLColor.b : colorAnnotated.b
+	    sizes[i] = isAnimating ? targetPointSize.size : effectController.pointSizeAnnotated
+        } else if (isAnimating && prevAnnotations && prevAnnotations[i] === 1) {
+            colors[i3] = prevTargetHSLColor.r
+            colors[i3 + 1] = prevTargetHSLColor.g
+            colors[i3 + 2] = prevTargetHSLColor.b
+	    sizes[i] = prevTargetPointSize.size
+	} else {
+            colors[i3] = colorNotAnnotated.r
+            colors[i3 + 1] = colorNotAnnotated.g
+            colors[i3 + 2] = colorNotAnnotated.b
+	    sizes[i] = effectController.pointSize
         }
 
         if (destinations[i] && destinations[i].x != undefined) {
-            var distX = destinations[i].x - v.x
+            var distX = destinations[i].x - positions[i3]
             if (Math.abs(distX) > 0.1) {
-                v.x += distX / 1000 * effectController.transitionSpeed * 3
+                positions[i3] += distX / 1000 * effectController.transitionSpeed * 3
             } else {
-                v.x = destinations[i].x
+                positions[i3] = destinations[i].x
             }
-        }
+	}
         if (destinations[i] && destinations[i].y != undefined) {
-            var distY = destinations[i].y - v.y
+            var distY = destinations[i].y - positions[i3 + 1]
             if (Math.abs(distY) > 0.1) {
-                v.y += distY / 1000 * effectController.transitionSpeed * 3
+                positions[i3 + 1] += distY / 1000 * effectController.transitionSpeed * 3
             } else {
-                v.y = destinations[i].y
+                positions[i3 + 1] = destinations[i].y
             }
         }
         if (destinations[i] && destinations[i].z != undefined) {
-            var distZ = destinations[i].z - v.z
+            var distZ = destinations[i].z - positions[i3 + 2]
             if (Math.abs(distZ) > 0.1) {
-                v.z += distZ / 1000 * effectController.transitionSpeed * 3
+                positions[i3 + 2] += distZ / 1000 * effectController.transitionSpeed * 3
             } else {
-                v.z = destinations[i].z
+                positions[i3 + 2] = destinations[i].z
             }
         }
     }
 
-    pointCloud.geometry.verticesNeedUpdate = true
-    attributes.size.needsUpdate = true
-    attributes.customColor.needsUpdate = true
+    raycaster.params.Points.threshold = effectController.highlightThreshold / scale
+    raycast()
+
+    pointCloud.geometry.attributes.position.needsUpdate = true
+    pointCloud.geometry.attributes.size.needsUpdate = true
+    pointCloud.geometry.attributes.color.needsUpdate = true
     
     shaderMaterial.blending = effectController.additiveBlending ? THREE.AdditiveBlending : THREE.NormalBlending
     shaderMaterial.depthTest = effectController.depthTest
@@ -426,6 +505,10 @@ function render() {
 	renderer.setViewport(0, 0, renderer.domElement.offsetWidth, renderer.domElement.offsetHeight)
 	renderer.render(scene, camera)
     }
+
+    // legend camera TODO
+    // renderer.setViewport(0, 9 / 10 * renderer.domElement.offsetHeight, renderer.domElement.offsetWidth / 10, renderer.domElement.offsetHeight / 10)
+    // renderer.render(legendScene, legendCamera)
 }
 
 function startAnimation(splines, tweenPos, tweenAnnotationNames, record) {
@@ -614,6 +697,10 @@ function handleKeypress(e) {
 	    startAnimation(splines, tweenPos, tweenAnnotations, false)
 	}
     }
+
+    if (e.keyCode === 114) { // 'r'otate
+	cameraControls.autoRotate = !cameraControls.autoRotate
+    }
     
     if (e.keyCode === 115) { // 's'ave frame
 	saveFrame('test')
@@ -624,6 +711,79 @@ function handleKeypress(e) {
     }
 }
 
+function raycast(e) {
+
+    if (!effectController.highlight) return
+    
+    var width = renderer.getSize().width
+    var height = renderer.getSize().height
+    if (effectController.showProjections) {
+	height *= 2 / 3
+    }
+    
+    raycaster.setFromCamera(mouse, camera)
+    var intersects = raycaster.intersectObject(pointCloud)
+
+    var sizes = pointCloud.geometry.attributes.size.array
+    for (var i = 0; i < sizes.length; i++) {
+	if (annotations && annotations[i] === 1) {
+	    sizes[i] = effectController.pointSizeAnnotated
+	} else {
+	    sizes[i] = effectController.pointSize
+	}
+    }
+
+    if (intersects.length > 0) {
+
+	// highlight intersecting samples or, if an annotation is selected, only annotated intersecting samples
+	for (var i = 0; i < intersects.length; i++) {
+	    if (!annotations || annotations.length === 0 || annotations[intersects[i].index] === 1) {
+		sizes[intersects[i].index] = effectController.pointSizeHighlight
+	    }
+	}
+	
+	if (effectController.highlightAnnotations && react.state.menuItems) {
+	    var highlights = null
+	    var hsl = colorAnnotated.getHSL()
+	    // if an annotation is selected, only highlight its children or itself if no children
+	    var items = react.state.menuItems
+	    if (react.state.selectedAnnotationItem) {
+		items = react.state.selectedAnnotationItem.children || [react.state.selectedAnnotationItem]
+	    }
+	    for (var i = 0; i < items.length; i++) {
+		var name = items[i].name.toLowerCase()
+		if (items[i].type === 'binary' && react.state.annotations[name]) {
+		    var ann = react.state.annotations[name]
+		    var numAnn = 0
+		    for (var j = 0; j < intersects.length; j++) {
+			if (ann[intersects[j].index] === 1) {
+			    ++numAnn
+			}
+		    }
+		    highlights = highlights || {}
+		    var gray = Math.round(config.defaultGray + numAnn / intersects.length * (255 - config.defaultGray))
+		    highlights[name] = {
+			numHighlighted: numAnn,
+			numHighlightedTotal: intersects.length,
+			color: {
+			    r: gray,
+			    g: gray,
+			    b: gray
+			}
+		    }
+		}
+	    }
+	    if (highlights) {
+		react.updateHighlights(highlights)
+	    }
+	}
+    } else if (effectController.highlightAnnotations) {
+	react.updateHighlights(null)
+    }
+    
+    pointCloud.geometry.attributes.size.needsUpdate = true
+}
+
 var Scatter = {
 
     initialize: function(domElement, reactClass, width, height, dataX, dataY, dataZ) {
@@ -631,6 +791,9 @@ var Scatter = {
         console.log('initializing scatterplot, data length: ' + dataX.length)
 	react = reactClass
         init(width, height)
+	//TODO
+	//drawLegendPlane()
+        drawHelperBox()
         drawAxes()
         drawTexts()
         fillScene(dataX, dataY, dataZ)
@@ -640,13 +803,19 @@ var Scatter = {
         animate()
 
 	document.onkeypress = handleKeypress
-	
+	document.onmousemove = function(e) {
+	    mouse.prevX = mouse.x
+	    mouse.prevY = mouse.y
+	    mouse.x = ((e.clientX - document.getElementById('menu').offsetWidth) / width) * 2 - 1
+	    mouse.y = -(e.clientY / height) * 2 + 1
+	}
+
         console.log('scatterplot initialized')
     },
     
     setValues: function(axis, values) {
         
-        for (var i = 0; i < pointCloud.geometry.vertices.length; i++) {
+        for (var i = 0; i < pointCloud.geometry.attributes.size.count; i++) {
             destinations[i] = {
                 x: axis === 'x' ? 2 * scale * (values[i] / 65536 - 0.5) : destinations[i] ? destinations[i].x : null,
                 y: axis === 'y' ? 2 * scale * (values[i] / 65536 - 0.5) : destinations[i] ? destinations[i].y : null,
@@ -655,23 +824,19 @@ var Scatter = {
         }
     },
 
-    setAnnotations: function(obj) {
-        
-        var values = obj && (obj.values || obj.annotated)
-        var type = obj && obj.type
-        if (values && values.length != attributes.customColor.value.length) {
+    setAnnotations: function(values, type, min, max) {
+
+        if (values && values.length != pointCloud.geometry.attributes.size.count) {
             console.error('incorrect length of annotations: ' + values.length)
         } else {
-            if (type == 'continuous') {
-                for (var i = 0; i < customValue.length; i++) {
-                    customValue[i] = values[i]
-                }
-            } else {
-                for (var i = 0; i < customValue.length; i++) {
-                    customValue[i] = 1
-                }
+	    var custom = pointCloud.geometry.attributes.custom.array
+            for (var i = 0; i < custom.length; i++) {
+		if (type == 'continuous') {
+                    custom[i] = (values[i] - min) / (max - min)
+		} else {
+		    custom[i] = 1
+		}
             }
-            customValue.needsUpdate = true
             annotations = values
             annotationType = type
         }

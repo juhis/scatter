@@ -33,7 +33,7 @@ if (!fs.existsSync(newDir)) {
 var files = fs.readdirSync(process.argv[2])
 _.forEach(files, function(file) {
     if (file.indexOf('annotation_') === 0) {
-	var annotations = JSON.parse(fs.readFileSync('annotations/' + file))
+	var annotations = JSON.parse(fs.readFileSync(process.argv[2] + '/' + file))
 	if (annotations.annotated.length != oldSamples.length) {
 	    console.error('wrong number of annotations in ' + file + ': ' + annotations.annotated.length)
 	} else {

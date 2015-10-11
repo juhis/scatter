@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <title>scatter</title>
     <style>
       body {
-      color: #999999;
       font-family: Helvetica;
       font-size: 1.25em;
       background-color: #000000;
@@ -14,7 +14,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/queue-async/1.0.7/queue.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tweenjs/0.6.0/tweenjs.min.js"></script>
-    <script src="lib/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r72/three.min.js"></script>
     <script src="lib/Tween.js"></script>
     <script src="lib/Detector.js"></script>
     <script src="lib/OrbitControls.js"></script>
@@ -23,11 +23,54 @@
     <script src="lib/helvetiker_regular.typeface.js"></script>
   </head>
   <body>
+
     <noscript>
       <div style="text-align: center; padding: 10px;">
         You don't have Javascript enabled.
       </div>
     </noscript>
+    
+    <script id="vertexShader" type="x-shader/x-vertex">
+      attribute float size;
+      attribute vec3 color;
+      varying vec3 vColor;
+      void main() {
+        vColor = color;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = size;
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    </script>
+    
+    <script id="fragmentShader" type="x-shader/x-fragment">
+      uniform float opacity;
+      varying vec3 vColor;
+      void main() {
+        gl_FragColor = vec4(vColor, opacity);
+      }
+    </script>
+    
+    <script id="legendVertexShader" type="x-shader/x-vertex">
+      attribute vec3 color;
+      varying vec3 vColor;
+      void main() {
+        vColor = color;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    </script>
+    
+    <script id="legendFragmentShader" type="x-shader/x-fragment">
+      uniform vec3 uColor;
+      uniform float opacity;
+      varying vec3 vColor;
+      void main() {
+        gl_FragColor = vec4(vColor, opacity);
+      }
+    </script>
+    
+    <div id="content" />
     <script src="build/bundle.js"></script>
+    
   </body>
 </html>
