@@ -20,7 +20,7 @@ SCATTER.config = {
     defaultTransitionSpeed: 50,
     defaultHighlightThreshold: 5,
 
-    continuousAnnotationScale: 0.25,
+    continuousAnnotationScale: 0.35,
 
     hueAnnotated: 0.54,
     saturationAnnotated: 1,

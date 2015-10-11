@@ -6,6 +6,8 @@ if (!window.SCATTER || !window.SCATTER.config) {
 var config = window.SCATTER.config
 
 var _ = require('lodash')
+var async = require('async')
+var superagent = require('superagent')
 var React = require('react')
 var ReactRouter = require('react-router')
 var Router = ReactRouter.Router
@@ -19,7 +21,7 @@ var styles = {
         display: 'flex',
         flexFlow: 'row nowrap',
         cursor: 'default',
-	color: 'rgb(' + config.defaultGray + ',' + config.defaultGray + ',' + config.defaultGray + ')'
+        color: 'rgb(' + config.defaultGray + ',' + config.defaultGray + ',' + config.defaultGray + ')'
     },
     message: {
         flex: '2 0 auto',
@@ -34,7 +36,7 @@ var styles = {
         backgroundColor: '#000000',
         userSelect: 'none',
         width: '15%',
-	maxWidth: '250px'
+        maxWidth: '250px'
     },
     optionRow: {
         padding: '0 0 10px 0'
@@ -57,7 +59,7 @@ var styles = {
         padding: '0 0 0 10px',
     },
     annotationItemQuantity: {
-	float: 'right'
+        float: 'right'
     },
     arrow: {
         cursor: 'pointer',
@@ -126,18 +128,17 @@ var ScatterApp = Radium(React.createClass({
         var domNode = React.findDOMNode(this)
         var hashIndex = {x: 1, y: 2, z: 3}
 
-        var that = this
-        d3.json(config.annotationDir + 'annotations.json', function(err, data) {
-            if (err) console.error(err)
-            else {
-                that.setState({
-                    menuItems: data
+        async.waterfall([
+            this.loadAnnotationItems,
+            this.loadAllAnnotations,
+            this.loadData.bind(this, hashIndex)
+        ], function(err) {
+            if (err) {
+                this.setState({
+                    error: err
                 })
-            }
-        })
-        this.loadData(hashIndex, function(err) {
-            if (err) this.setState({error: err})
-            else {
+                return console.error(err)
+            } else {
                 this.setState({
                     pointData: this.state.pointData,
                     x: hashIndex['x'],
@@ -148,7 +149,13 @@ var ScatterApp = Radium(React.createClass({
                 setTimeout(function() { // timeout to allow state update before scatter initialization
                     var scatterWidth = window.innerWidth - ((this.refs.menu && this.refs.menu.getDOMNode().offsetWidth) || 100)
                     var scatterHeight = window.innerHeight
-                    scatter.initialize(domNode, this, scatterWidth, scatterHeight, this.state.pointData[hashIndex['x']], this.state.pointData[hashIndex['y']], this.state.pointData[hashIndex['z']])
+                    scatter.initialize(domNode,
+                                       this,
+                                       scatterWidth,
+                                       scatterHeight,
+                                       this.state.pointData[hashIndex['x']],
+                                       this.state.pointData[hashIndex['y']],
+                                       this.state.pointData[hashIndex['z']])
                     this.setState({
                         isInitialized: true
                     })
@@ -160,99 +167,163 @@ var ScatterApp = Radium(React.createClass({
     // TODO binary data
     loadData: function(hashIndex, callback) {
 
-        var that = this
-        window.performance && window.performance.mark('data_load_start_' + this.state.numLoads)
+        var numLoads = this.state.numLoads
+        window.performance && window.performance.mark('data_load_start_' + numLoads)
 
-        var q = queue()
-        _.forEach(hashIndex, function(index, axis) {
-            q.defer(d3.json, config.dataDir + config.dataPrefix + index + '.json')
-        }, this)
-
-        q.awaitAll(function(err, results) {
-            if (err) return callback(err)
-            _.forEach(results, function(result) {
-                if (!result.values || result.index == undefined || result.max == undefined) {
-                    console.error('invalid data, has to contain .values, .index and .max')
-                } else {
-                    var arr = new Uint16Array(result.values.length)
-                    for (var i = 0; i < result.values.length; i++) {
-                        arr[i] = (result.values[i] / result.max + 1) / 2 * 65535
+        async.eachSeries(_.keys(hashIndex), function(axis, cb) {
+            var filename = config.dataDir + '/' + config.dataPrefix + hashIndex[axis] + '.json'
+            superagent
+                .get(filename)
+                .accept('json')
+                .end(function(err, res) {
+                    if (err) {
+                        if (err.message === 'Not Found') err.message += ': ' + filename
+                        return cb(err)
+                    } else {
+                        var data = res.body
+                        if (!data.values || data.index == undefined || data.max == undefined) {
+                            return cb({name: 'DataError', message: filename + ': invalid data, has to contain .values, .index and .max'})
+                        } else {
+                            // scale to 0-65535
+                            var arr = new Uint16Array(data.values.length)
+                            for (var i = 0; i < data.values.length; i++) {
+                                arr[i] = (data.values[i] / data.max + 1) / 2 * 65535
+                            }
+                            this.state.pointData[data.index] = arr
+                            return cb(null)
+                        }
                     }
-                    that.state.pointData[result.index] = arr
-                }
-            })
-            window.performance && window.performance.mark('data_load_stop')
-            window.performance && window.performance.measure('data_load', 'data_load_start_' + that.state.numLoads, 'data_load_stop')
-            callback(null)
+                }.bind(this))
+        }.bind(this), function(err) {
+            if (err) return callback(err)
+            else {
+                window.performance && window.performance.mark('data_load_stop')
+                window.performance && window.performance.measure('data_load', 'data_load_start_' + numLoads, 'data_load_stop')
+                return callback(null)
+            }
         })
     },
 
-    loadAllAnnotations: function() {
+    loadAnnotationItems: function(callback) {
+        var filename = config.annotationDir + '/annotations.json'
+        superagent
+            .get(filename)
+            .accept('json')
+            .end(function(err, res) {
+                if (err) {
+                    if (err.message === 'Not Found') err.message += ': ' + filename
+                    return callback(err)
+                } else {
+                    var error = null
+                    _.forEach(res.body, function(item) {
+                        error = this.checkAnnotationItem(filename, item)
+                        if (error) return false
+                    }.bind(this))
+                    if (error) {
+                        this.setState({
+                            error: error
+                        })
+                    } else {
+                        this.setState({
+                            menuItems: res.body
+                        })
+                    }
+                    return callback(error, res.body)
+                }
+            }.bind(this))
+    },
 
-	var that = this
-	window.performance && window.performance.mark('annotations_load_start')
-	var q = queue()
-	_.forEach(this.state.menuItems, function(item) {
-	    _.forEach(item.children, function(child) {
-		var lcase = child.name.toLowerCase()
-		d3.json(config.annotationDir + child.filename, function(err, data) {
-		    if (err) console.error(err)
-		    else {
-			that.state.annotations[lcase] = data
-		    }
-		})
-	    })
-	    var lcase = item.name.toLowerCase()
-	    d3.json(config.annotationDir + item.filename, function(err, data) {
-		if (err) console.error(err)
-		else {
-		    that.state.annotations[lcase] = data
-		}
-	    })
-	})
-	q.awaitAll(function(err, results) {
-	    if (err) return callback(err)
-	    window.performance && window.performance.mark('annotations_load_stop')
-	    window.performance && window.performance.measure('annotations_load', 'annotations_load_start', 'annotations_load_stop')
-	    window.performance && console.log(window.performance.getEntriesByName('annotations_load')[0].duration + 'ms: annotations_load')
-	    that.setState({
-		annotations: that.state.annotations
-	    })
-	})
+    checkAnnotationItem: function(filename, item) {
+        var error = null
+        if (!item.name || !item.type || !item.filename) {
+            error = {name: 'DataError', message: filename + ': items have to contain .name, .type and .filename'}
+        } else if (item.type === 'binary' && item.numAnnotated == undefined) {
+            error = {name: 'DataError', message: filename + ': binary items have to contain .numAnnotated'}
+        } else if (item.type === 'continuous' && (item.min == undefined || item.max == undefined)) {
+            error = {name: 'DataError', message: filename + ': continuous items have to contain .min and .max'}
+        } else if (item.type !== 'binary' && item.type !== 'continuous') {
+            error = {name: 'DataError', message: filename + ': unknown item type: ' + item.type}
+        } else {
+            _.forEach(item.children, function(child) {
+                error = this.checkAnnotationItem(filename, child)
+                if (error) return false
+            }.bind(this))
+        }
+        return error
+    },
+
+    loadAllAnnotations: function(items, callback) {
+
+        window.performance && window.performance.mark('annotations_load_start')
+
+        var itemsWithChildren = _.chain(items)
+            .map(function(item) {
+                return [item, item.children]
+            })
+            .flatten(true)
+            .compact()
+            .value()
+        
+        async.eachSeries(itemsWithChildren, function(item, cb) {
+            var lcase = item.name.toLowerCase()
+            var filename = config.annotationDir + '/' + item.filename
+            superagent
+                .get(filename)
+                .accept('json')
+                .end(function(err, res) {
+                    if (err) {
+                        if (err.message === 'Not Found') err.message += ': ' + filename
+                        return cb(err)
+                    } else {
+                        this.state.annotations[lcase] = res.body
+                        return cb(null)
+                    }
+                }.bind(this))
+        }.bind(this), function(err) {
+            if (err) {
+                this.setState({
+                    error: err
+                })
+                return callback(err)
+            } else {
+                window.performance && window.performance.mark('annotations_load_stop')
+                window.performance && window.performance.measure('annotations_load', 'annotations_load_start', 'annotations_load_stop')
+                this.setState({
+                    annotations: this.state.annotations
+                })
+                return callback(null)
+            }
+        }.bind(this))
     },
 
     setAnnotationByName: function(name) {
-	this.setAnnotation(this.state.annotations[name.toLowerCase()])
+        var foundItem = null
+        _.forEach(this.state.menuItems, function(item) {
+            if (item.name.toLowerCase() === name) {
+                foundItem = item
+                return false
+            }
+        }.bind(this))
+        return this.setAnnotation(foundItem)
     },
     
     setAnnotation: function(item) {
-
-        var that = this
         if (!item) {
             scatter.setAnnotations(null)
         } else {
-	    var lcase = item.name.toLowerCase()
+            var lcase = item.name.toLowerCase()
             if (this.state.annotations[lcase]) {
                 scatter.setAnnotations(this.state.annotations[lcase], item.type, item.min, item.max)
             } else {
-                d3.json(config.annotationDir + item.filename, function(err, data) {
-                    if (err) console.error(err)
-                    else {
-                        scatter.setAnnotations(data, item.type, item.min, item.max)
-                        that.state.annotations[lcase] = data
-                        that.setState({
-                            annotations: that.state.annotations
-                        })
-                    }
-                })
+                console.error('annotation not found: ' + lcase)
             }
         }
     },
 
     updateHighlights: function(highlights) {
-	this.setState({
-	    highlights: highlights
-	})
+        this.setState({
+            highlights: highlights
+        })
     },
     
     setComponent: function(axis, component) {
@@ -269,8 +340,13 @@ var ScatterApp = Radium(React.createClass({
             var obj = {}
             obj[axis] = component
             this.loadData(obj, function(err) {
-                if (err) console.error(err)
-                else {
+                if (err) {
+                    scatter.hide()
+                    this.setState({
+                        error: err
+                    })
+                    return console.error(err)
+                } else {
                     scatter.setValues(axis, this.state.pointData[component])
                     this.setState({
                         pointData: this.state.pointData,
@@ -328,58 +404,58 @@ var ScatterApp = Radium(React.createClass({
             if (this.state.openAnnotationItem === item) {
                 childItems = _.map(item.children, function(child) {
                     var dynamicStyle = this.state.selectedAnnotationItem === child ? {color: '#ffffff'} : null
-		    var desc = !!child.numAnnotated ? child.numAnnotated : ''
-		    if (this.state.highlights && this.state.highlights[child.name.toLowerCase()]) {
-			var highlight = this.state.highlights[child.name.toLowerCase()]
-			desc = Math.round(100 * highlight.numHighlighted / highlight.numHighlightedTotal) + ' %'
-			dynamicStyle = {
-			    color: 'rgb(' + highlight.color.r + ', ' + highlight.color.g + ', ' + highlight.color.b + ')'
-			}
-		    }
+                    var desc = !!child.numAnnotated ? child.numAnnotated : ''
+                    if (this.state.highlights && this.state.highlights[child.name.toLowerCase()]) {
+                        var highlight = this.state.highlights[child.name.toLowerCase()]
+                        desc = Math.round(100 * highlight.numHighlighted / highlight.numHighlightedTotal) + ' %'
+                        dynamicStyle = {
+                            color: 'rgb(' + highlight.color.r + ', ' + highlight.color.g + ', ' + highlight.color.b + ')'
+                        }
+                    }
                     return (
                             <div
                         key={child.name}
                         style={[styles.annotationItem, styles.annotationItemChild, dynamicStyle]}
                         onClick={this.onAnnotationClick.bind(null, child, true)}>
                             {child.name.toUpperCase()}
-			    <span style={styles.annotationItemQuantity}>{desc}</span>
+                            <span style={styles.annotationItemQuantity}>{desc}</span>
                         </div>
                     )
                 }, this)
             }
             
             var dynamicStyle = this.state.selectedAnnotationItem === item ? {color: '#ffffff'} : null
-	    var desc = !!item.numAnnotated ? item.numAnnotated : ''
-	    if (this.state.highlights && this.state.highlights[item.name.toLowerCase()]) {
-		var highlight = this.state.highlights[item.name.toLowerCase()]
-		desc = Math.round(100 * highlight.numHighlighted / highlight.numHighlightedTotal) + ' %'
-		dynamicStyle = {
-		    color: 'rgb(' + highlight.color.r + ', ' + highlight.color.g + ', ' + highlight.color.b + ')'
-		}
-	    }
+            var desc = !!item.numAnnotated ? item.numAnnotated : ''
+            if (this.state.highlights && this.state.highlights[item.name.toLowerCase()]) {
+                var highlight = this.state.highlights[item.name.toLowerCase()]
+                desc = Math.round(100 * highlight.numHighlighted / highlight.numHighlightedTotal) + ' %'
+                dynamicStyle = {
+                    color: 'rgb(' + highlight.color.r + ', ' + highlight.color.g + ', ' + highlight.color.b + ')'
+                }
+            }
             return (
                     <div key={item.name}>
                     <div style={[styles.annotationItem, dynamicStyle]} onClick={this.onAnnotationClick.bind(null, item, false)}>
-		    <div>{item.name.toUpperCase()}
-		    <span style={styles.annotationItemQuantity}>{desc}</span>
-		    </div>
+                    <div>{item.name.toUpperCase()}
+                    <span style={styles.annotationItemQuantity}>{desc}</span>
+                    </div>
                     </div>
                     {childItems}
                 </div>
             )
         }, this)
-        
+
+        var msg = this.state.error ? this.state.error.message : message
         return (
                 <div id='app' style={styles.app}>
                 <div ref='menu' id='menu' style={styles.menu}>
                 {axisOptions}
                 <div id='annotation'>
-		<div style={styles.annotationsLoadAll} onClick={this.loadAllAnnotations}>LOAD ALL</div>
                 {menuOptions}
             </div>
                 </div>
-                {!this.state.isInitialized ?
-                 <div id='message' style={styles.message}><div>{message}</div></div>
+                {!this.state.isInitialized || this.state.error ?
+                 <div id='message' style={styles.message}><div>{msg}</div></div>
                  : null}
             </div>
         )
