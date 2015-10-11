@@ -1,4 +1,6 @@
-module.exports = {
+window.SCATTER = window.SCATTER || {}
+
+SCATTER.config = {
 
     url: 'http://localhost',
     port: 8080,

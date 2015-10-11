@@ -1,9 +1,13 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"/Users/juhis/Projects/scatter/assets/js/scatter.js":[function(require,module,exports){
 'use strict'
 
+if (!window.SCATTER || !window.SCATTER.config) {
+    console.error('scatter configuration not loaded')
+}
+var config = window.SCATTER.config
+
 var async = require('async')
 var superagent = require('superagent')
-var config = require('../../config/config.js')
 
 var react
 var scene, legendScene, renderer
@@ -847,8 +851,13 @@ var Scatter = {
 module.exports = Scatter
 
 
-},{"../../config/config.js":"/Users/juhis/Projects/scatter/config/config.js","async":"/usr/local/lib/node_modules/async/lib/async.js","superagent":"/Users/juhis/Projects/scatter/node_modules/superagent/lib/client.js"}],"/Users/juhis/Projects/scatter/assets/jsx/App.js":[function(require,module,exports){
+},{"async":"/usr/local/lib/node_modules/async/lib/async.js","superagent":"/Users/juhis/Projects/scatter/node_modules/superagent/lib/client.js"}],"/Users/juhis/Projects/scatter/assets/jsx/App.js":[function(require,module,exports){
 'use strict'
+
+if (!window.SCATTER || !window.SCATTER.config) {
+    console.error('scatter configuration not loaded')
+}
+var config = window.SCATTER.config
 
 var _ = require('lodash')
 var React = require('react')
@@ -857,7 +866,6 @@ var Router = ReactRouter.Router
 var Route = ReactRouter.Route
 var Radium = require('radium')
 var createBrowserHistory = require('history/lib/createBrowserHistory')
-var config = require('../../config/config')
 var scatter = require('../js/scatter')
 
 var styles = {
@@ -1241,40 +1249,7 @@ var routes = (
 React.render(routes, document.getElementById('content'))
 
 
-},{"../../config/config":"/Users/juhis/Projects/scatter/config/config.js","../js/scatter":"/Users/juhis/Projects/scatter/assets/js/scatter.js","history/lib/createBrowserHistory":"/Users/juhis/Projects/scatter/node_modules/history/lib/createBrowserHistory.js","lodash":"/Users/juhis/Projects/scatter/node_modules/lodash/index.js","radium":"/Users/juhis/Projects/scatter/node_modules/radium/lib/index.js","react":"/Users/juhis/Projects/scatter/node_modules/react/react.js","react-router":"/Users/juhis/Projects/scatter/node_modules/react-router/lib/index.js"}],"/Users/juhis/Projects/scatter/config/config.js":[function(require,module,exports){
-module.exports = {
-
-    url: 'http://localhost',
-    port: 8080,
-    
-    dataDir: '/assets/data/example/',
-    dataPrefix: 'PC',
-    numDimensions: 6,
-    annotationDir: '/assets/data/example_annotations/',
-    
-    defaultGray: 153,
-    
-    defaultPointSize: 1.3,
-    defaultPointSizeAnnotated: 3.5,
-    defaultPointSizeHighlight: 5,
-    defaultOpacity: 0.25,
-    defaultLegendOpacity: 0.75,
-    defaultTransitionSpeed: 50,
-    defaultHighlightThreshold: 5,
-
-    continuousAnnotationScale: 0.25,
-
-    hueAnnotated: 0.54,
-    saturationAnnotated: 1,
-    lightnessAnnotated: 0.5,
-    hueNotAnnotated: 0.5,
-    saturationNotAnnotated: 0.8,
-    lightnessNotAnnotated: 1,
-    
-}
-
-
-},{}],"/Users/juhis/Projects/scatter/node_modules/history/lib/Actions.js":[function(require,module,exports){
+},{"../js/scatter":"/Users/juhis/Projects/scatter/assets/js/scatter.js","history/lib/createBrowserHistory":"/Users/juhis/Projects/scatter/node_modules/history/lib/createBrowserHistory.js","lodash":"/Users/juhis/Projects/scatter/node_modules/lodash/index.js","radium":"/Users/juhis/Projects/scatter/node_modules/radium/lib/index.js","react":"/Users/juhis/Projects/scatter/node_modules/react/react.js","react-router":"/Users/juhis/Projects/scatter/node_modules/react-router/lib/index.js"}],"/Users/juhis/Projects/scatter/node_modules/history/lib/Actions.js":[function(require,module,exports){
 /**
  * Indicates that navigation was caused by a call to history.push.
  */

@@ -1,8 +1,12 @@
 'use strict'
 
+if (!window.SCATTER || !window.SCATTER.config) {
+    console.error('scatter configuration not loaded')
+}
+var config = window.SCATTER.config
+
 var async = require('async')
 var superagent = require('superagent')
-var config = require('../../config/config.js')
 
 var react
 var scene, legendScene, renderer

@@ -1,5 +1,10 @@
 'use strict'
 
+if (!window.SCATTER || !window.SCATTER.config) {
+    console.error('scatter configuration not loaded')
+}
+var config = window.SCATTER.config
+
 var _ = require('lodash')
 var React = require('react')
 var ReactRouter = require('react-router')
@@ -7,7 +12,6 @@ var Router = ReactRouter.Router
 var Route = ReactRouter.Route
 var Radium = require('radium')
 var createBrowserHistory = require('history/lib/createBrowserHistory')
-var config = require('../../config/config')
 var scatter = require('../js/scatter')
 
 var styles = {
