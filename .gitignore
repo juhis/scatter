@@ -1,8 +1,7 @@
 npm-debug.log
 node_modules
 
-assets/data/pc
-assets/data/pc2
-assets/data/annotations
+assets/data/pc*
+assets/data/annotations*
 
 server/uploads

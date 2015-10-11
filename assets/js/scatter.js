@@ -968,7 +968,7 @@ var Scatter = {
             var custom = pointCloud.geometry.attributes.custom.array
             for (var i = 0; i < custom.length; i++) {
                 if (type == 'continuous') {
-                    custom[i] = (values[i] - min) / (max - min)
+                    custom[i] = values[i] / 255
                 } else {
                     custom[i] = 1
                 }

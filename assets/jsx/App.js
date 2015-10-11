@@ -164,34 +164,26 @@ var ScatterApp = Radium(React.createClass({
         }.bind(this))
     },
 
-    // TODO binary data
     loadData: function(hashIndex, callback) {
 
         var numLoads = this.state.numLoads
         window.performance && window.performance.mark('data_load_start_' + numLoads)
 
         async.eachSeries(_.keys(hashIndex), function(axis, cb) {
-            var filename = config.dataDir + '/' + config.dataPrefix + hashIndex[axis] + '.json'
+            var filename = config.dataDir + '/' + config.dataPrefix + hashIndex[axis] + '.buffer'
             superagent
                 .get(filename)
-                .accept('json')
+                .on('request', function() {
+                    this.xhr.responseType = 'arraybuffer'
+                })
                 .end(function(err, res) {
                     if (err) {
                         if (err.message === 'Not Found') err.message += ': ' + filename
                         return cb(err)
                     } else {
-                        var data = res.body
-                        if (!data.values || data.index == undefined || data.max == undefined) {
-                            return cb({name: 'DataError', message: filename + ': invalid data, has to contain .values, .index and .max'})
-                        } else {
-                            // scale to 0-65535
-                            var arr = new Uint16Array(data.values.length)
-                            for (var i = 0; i < data.values.length; i++) {
-                                arr[i] = (data.values[i] / data.max + 1) / 2 * 65535
-                            }
-                            this.state.pointData[data.index] = arr
-                            return cb(null)
-                        }
+                        var arr = new Uint16Array(res.xhr.response)
+                        this.state.pointData[hashIndex[axis]] = arr
+                        return cb(null)
                     }
                 }.bind(this))
         }.bind(this), function(err) {
@@ -235,8 +227,8 @@ var ScatterApp = Radium(React.createClass({
 
     checkAnnotationItem: function(filename, item) {
         var error = null
-        if (!item.name || !item.type || !item.filename) {
-            error = {name: 'DataError', message: filename + ': items have to contain .name, .type and .filename'}
+        if (!item.name || !item.type) {
+            error = {name: 'DataError', message: filename + ': items have to contain .name and .type'}
         } else if (item.type === 'binary' && item.numAnnotated == undefined) {
             error = {name: 'DataError', message: filename + ': binary items have to contain .numAnnotated'}
         } else if (item.type === 'continuous' && (item.min == undefined || item.max == undefined)) {
@@ -263,37 +255,64 @@ var ScatterApp = Radium(React.createClass({
             .flatten(true)
             .compact()
             .value()
-        
-        async.eachSeries(itemsWithChildren, function(item, cb) {
-            var lcase = item.name.toLowerCase()
-            var filename = config.annotationDir + '/' + item.filename
+
+        if (itemsWithChildren[0].filename) { // filename given: json annotations in separate files
+            async.eachSeries(itemsWithChildren, function(item, cb) {
+                var lcase = item.name.toLowerCase()
+                var filename = config.annotationDir + '/' + item.filename
+                superagent
+                    .get(filename)
+                    .accept('json')
+                    .end(function(err, res) {
+                        if (err) {
+                            if (err.message === 'Not Found') err.message += ': ' + filename
+                            return cb(err)
+                        } else {
+                            this.state.annotations[lcase] = res.body
+                            return cb(null)
+                        }
+                    }.bind(this))
+            }.bind(this), function(err) {
+                if (err) {
+                    return callback(err)
+                } else {
+                    window.performance && window.performance.mark('annotations_load_stop')
+                    window.performance && window.performance.measure('annotations_load', 'annotations_load_start', 'annotations_load_stop')
+                    this.setState({
+                        annotations: this.state.annotations
+                    })
+                    return callback(null)
+                }
+            }.bind(this))
+        } else { // binary annotations // TODO bitmasking for binary binary annotations
             superagent
-                .get(filename)
-                .accept('json')
+                .get(config.annotationDir + '/annotations.buffer')
+                .on('request', function() {
+                    this.xhr.responseType = 'arraybuffer'
+                })
                 .end(function(err, res) {
                     if (err) {
                         if (err.message === 'Not Found') err.message += ': ' + filename
-                        return cb(err)
+                        return callback(err)
                     } else {
-                        this.state.annotations[lcase] = res.body
-                        return cb(null)
+                        var allAnnotations = new Uint8Array(res.xhr.response)
+                        var dataLength = allAnnotations.length / itemsWithChildren.length
+                        for (var i = 0; i < itemsWithChildren.length; i++) {
+                            var arr = []
+                            for (var j = 0; j < dataLength; j++) {
+                                arr.push(allAnnotations[i * dataLength + j])
+                            }
+                            this.state.annotations[itemsWithChildren[i].name.toLowerCase()] = arr
+                        }
+                        window.performance && window.performance.mark('annotations_load_stop')
+                        window.performance && window.performance.measure('annotations_load', 'annotations_load_start', 'annotations_load_stop')
+                        this.setState({
+                            annotations: this.state.annotations
+                        })
+                        return callback(null)
                     }
                 }.bind(this))
-        }.bind(this), function(err) {
-            if (err) {
-                this.setState({
-                    error: err
-                })
-                return callback(err)
-            } else {
-                window.performance && window.performance.mark('annotations_load_stop')
-                window.performance && window.performance.measure('annotations_load', 'annotations_load_start', 'annotations_load_stop')
-                this.setState({
-                    annotations: this.state.annotations
-                })
-                return callback(null)
-            }
-        }.bind(this))
+        }
     },
 
     setAnnotationByName: function(name) {

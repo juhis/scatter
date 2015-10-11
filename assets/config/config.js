@@ -5,10 +5,10 @@ SCATTER.config = {
     url: 'http://localhost',
     port: 8080,
     
-    dataDir: '/assets/data/example/',
+    dataDir: '/assets/data/example',
     dataPrefix: 'PC',
     numDimensions: 6,
-    annotationDir: '/assets/data/example_annotations/',
+    annotationDir: '/assets/data/example_annotations_binary',
     
     defaultGray: 153,
     
