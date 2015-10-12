@@ -1,6 +1,4 @@
-window.SCATTER = window.SCATTER || {}
-
-SCATTER.config = {
+var config = {
 
     url: 'http://localhost',
     port: 8080,
@@ -8,7 +6,7 @@ SCATTER.config = {
     dataDir: '/assets/data/example',
     dataPrefix: 'PC',
     numDimensions: 6,
-    annotationDir: '/assets/data/example_annotations_binary',
+    annotationDir: '/assets/data/example_annotations',
     
     defaultGray: 153,
     
@@ -32,4 +30,12 @@ SCATTER.config = {
 
     defaultHeadXSensitivity: 8,
     defaultHeadYSensitivity: 8,
+}
+
+if (typeof module === 'object' && module.exports) {
+    module.exports = config
+}
+if (typeof window === 'object') {
+    window.SCATTER = window.SCATTER || {}
+    window.SCATTER.config = config
 }
