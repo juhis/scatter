@@ -2,7 +2,7 @@ var fs = require('fs')
 
 if (process.argv.length !== 4) {
     console.log('converts json annotations in given directory to binary ones writing to given out directory')
-    console.log('usage: node convert_annotations_to_binary indir outdir')
+    console.log('usage: node convertAnnotationsToBinary indir outdir')
     process.exit(1)
 }
 

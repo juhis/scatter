@@ -1,14 +1,18 @@
 var config = {
 
-    url: 'http://localhost',
-    port: 8080,
+    port: 8080, // which port to run the server on
     
-    dataDir: '/assets/data/example',
-    dataPrefix: 'PC',
-    numDimensions: 6,
-    annotationDir: '/assets/data/example_annotations',
+    dataDir: '/data/example', // directory for data files (one file per dimension)
+    dataType: 'json', // 'buffer' or 'json'
+    dataPrefix: 'PC', // file name prefix, files go 'PC1.buffer' (or 'PC1.json'), 'PC2.buffer' etc.
+    numDimensions: 6, // equal or smaller than the number of data files
     
-    defaultGray: 153,
+    annotationDir: '/data/example_annotations_binary', // leave empty for no annotations
+    annotationType: 'buffer', // 'buffer' or 'json'
+    
+    defaultGray: 153, // default shade for ui
+
+    //// dat.GUI defaults
     
     defaultPointSize: 1.3,
     defaultPointSizeAnnotated: 3.5,

@@ -170,22 +170,50 @@ var ScatterApp = Radium(React.createClass({
         window.performance && window.performance.mark('data_load_start_' + numLoads)
 
         async.eachSeries(_.keys(hashIndex), function(axis, cb) {
-            var filename = config.dataDir + '/' + config.dataPrefix + hashIndex[axis] + '.buffer'
-            superagent
-                .get(filename)
-                .on('request', function() {
-                    this.xhr.responseType = 'arraybuffer'
-                })
-                .end(function(err, res) {
-                    if (err) {
-                        if (err.message === 'Not Found') err.message += ': ' + filename
-                        return cb(err)
-                    } else {
-                        var arr = new Uint16Array(res.xhr.response)
-                        this.state.pointData[hashIndex[axis]] = arr
-                        return cb(null)
-                    }
-                }.bind(this))
+            if (config.dataType === 'buffer') {
+                var filename = config.dataDir + '/' + config.dataPrefix + hashIndex[axis] + '.buffer'
+                superagent
+                    .get(filename)
+                    .on('request', function() {
+                        this.xhr.responseType = 'arraybuffer'
+                    })
+                    .end(function(err, res) {
+                        if (err) {
+                            if (err.message === 'Not Found') err.message += ': ' + filename
+                            return cb(err)
+                        } else {
+                            var arr = new Uint16Array(res.xhr.response)
+                            this.state.pointData[hashIndex[axis]] = arr
+                            return cb(null)
+                        }
+                    }.bind(this))
+            } else if (config.dataType === 'json') {
+                var filename = config.dataDir + '/' + config.dataPrefix + hashIndex[axis] + '.json'
+                superagent
+                    .get(filename)
+                    .accept('json')
+                    .end(function(err, res) {
+                        if (err) {
+                            if (err.message === 'Not Found') err.message += ': ' + filename
+                            return cb(err)
+                        } else {
+                            var data = res.body
+                            if (!data.values || data.max == undefined) {
+                                return cb({name: 'DataError', message: filename + ': invalid data, has to contain .values and .max'})
+                            } else {
+                                // scale to 0-65535
+                                var arr = new Uint16Array(data.values.length)
+                                for (var i = 0; i < data.values.length; i++) {
+                                    arr[i] = (data.values[i] / data.max + 1) / 2 * 65535
+                                }
+                                this.state.pointData[data.index] = arr
+                                return cb(null)
+                            }
+                        }
+                    }.bind(this))
+            } else {
+                cb({name: 'ConfigError', message: 'Unknown dataType in config: ' + config.dataType})
+            }
         }.bind(this), function(err) {
             if (err) return callback(err)
             else {
@@ -256,7 +284,7 @@ var ScatterApp = Radium(React.createClass({
             .compact()
             .value()
 
-        if (itemsWithChildren[0].filename) { // filename given: json annotations in separate files
+        if (config.annotationType === 'json') { // annotations are in separate files
             async.eachSeries(itemsWithChildren, function(item, cb) {
                 var lcase = item.name.toLowerCase()
                 var filename = config.annotationDir + '/' + item.filename
@@ -284,7 +312,7 @@ var ScatterApp = Radium(React.createClass({
                     return callback(null)
                 }
             }.bind(this))
-        } else { // binary annotations // TODO bitmasking for binary binary annotations
+        } else if (config.annotationType === 'buffer') { // binary annotations // TODO bitmasking for binary binary annotations
             superagent
                 .get(config.annotationDir + '/annotations.buffer')
                 .on('request', function() {
@@ -312,6 +340,8 @@ var ScatterApp = Radium(React.createClass({
                         return callback(null)
                     }
                 }.bind(this))
+        } else {
+            callback({name: 'ConfigError', message: 'Unknown annotationType in config: ' + config.annotationType})
         }
     },
 

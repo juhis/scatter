@@ -4,6 +4,7 @@
   "description": "Fast 3D visualization of large, high-dimensional datasets",
   "main": "index.js",
   "dependencies": {
+    "async": "^1.4.2",
     "history": "^1.12.1",
     "lodash": "^3.10.1",
     "radium": "^0.14.1",
@@ -11,6 +12,7 @@
     "react-router": "^1.0.0-rc1",
     "reactify": "^1.1.1",
     "restify": "^4.0.3",
+    "split": "^1.0.0",
     "superagent": "^1.4.0"
   },
   "devDependencies": {},

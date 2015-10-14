@@ -4,7 +4,7 @@ var splitter = require('split')
 
 if (process.argv.length != 5) {
     console.log('filter annotation files based on a subset of samples')
-    console.log('usage: node filter_annotations annotationDir oldSampleFile newSampleFile')
+    console.log('usage: node filterAnnotations annotationDir oldSampleFile newSampleFile')
     process.exit(1)
 }
 if (!fs.existsSync(process.argv[2])) {

@@ -395,7 +395,7 @@ function setupGUI() {
         showAxes: false,
         showFPS: false,
 
-        highlight: true,
+        highlight: false,
         highlightAnnotations: true,
         highlightThreshold: config.defaultHighlightThreshold,
 
