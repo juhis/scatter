@@ -61,6 +61,9 @@ var styles = {
     annotationItemQuantity: {
         float: 'right'
     },
+    selectedAnnotationItem: {
+        color: '#ffffff'
+    },
     arrow: {
         cursor: 'pointer',
         fill: '#999999',
@@ -409,6 +412,11 @@ var ScatterApp = Radium(React.createClass({
         }
     },
 
+    updateAnnotationColor: function(color) {
+        styles.selectedAnnotationItem.color = color
+        this.setState({})
+    },
+    
     onAnnotationClick: function(item, isChild) {
 
         if (this.state.selectedAnnotationItem === item || _.includes(item.children, this.state.selectedAnnotationItem)) {
@@ -420,6 +428,7 @@ var ScatterApp = Radium(React.createClass({
             })
         } else {
             this.setAnnotation(item)
+            this.updateAnnotationColor(scatter.getAnnotationColor())
             if (isChild) {
                 this.setState({
                     selectedAnnotationItem: item
@@ -452,7 +461,7 @@ var ScatterApp = Radium(React.createClass({
             var childItems = null
             if (this.state.openAnnotationItem === item) {
                 childItems = _.map(item.children, function(child) {
-                    var dynamicStyle = this.state.selectedAnnotationItem === child ? {color: '#ffffff'} : null
+                    var dynamicStyle = this.state.selectedAnnotationItem === child ? styles.selectedAnnotationItem : null
                     var desc = !!child.numAnnotated ? child.numAnnotated : ''
                     if (this.state.highlights && this.state.highlights[child.name.toLowerCase()]) {
                         var highlight = this.state.highlights[child.name.toLowerCase()]
@@ -472,8 +481,8 @@ var ScatterApp = Radium(React.createClass({
                     )
                 }, this)
             }
-            
-            var dynamicStyle = this.state.selectedAnnotationItem === item ? {color: '#ffffff'} : null
+
+            var dynamicStyle = this.state.selectedAnnotationItem === item ? styles.selectedAnnotationItem : null
             var desc = !!item.numAnnotated ? item.numAnnotated : ''
             if (this.state.highlights && this.state.highlights[item.name.toLowerCase()]) {
                 var highlight = this.state.highlights[item.name.toLowerCase()]

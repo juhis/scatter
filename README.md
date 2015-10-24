@@ -10,7 +10,7 @@ To run:
   * node server/server.js
   * If you don't have node installed, any web server will do (animations cannot be saved without the node server, though): python -m SimpleHTTPServer
 
-See configuration in assets/config/config.js to use your own dataset.
+See configuration in config/config.js to use your own dataset.
 
 To develop:
 
@@ -19,6 +19,6 @@ To develop:
 2. Install watchify for bundling the files:
   * [sudo] npm install -g watchify
 3. Run watchify to recreate the bundle file each time a source file changes:
-  * watchify -t reactify -v -o build/bundle.js assets/jsx/App.js
+  * watchify -t reactify -o build/bundle.js assets/jsx/App.js -v
 
 ![screenshot](https://raw.githubusercontent.com/juhis/scatter/master/assets/images/screenshot.png)
