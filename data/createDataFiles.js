@@ -30,7 +30,6 @@ fs.createReadStream(process.argv[2])
                 })
             }
         } else {
-            var max = 0
             for (var i = 1; i < split.length; i++) {
                 pcData[i-1].values.push(+split[i])
                 pcData[i-1].max = Math.max(pcData[i-1].max, Math.abs(+split[i]))
@@ -44,6 +43,9 @@ fs.createReadStream(process.argv[2])
     .on('end', function() {
         console.log('writing files')
         for (var i = 0; i < pcData.length; i++) {
+            if (isNaN(pcData[i].max)) {
+                console.error('incorrect data, max is NaN for dimension ' + (i + 1))
+            }
             fs.writeFileSync(outDir + '/' + filePrefix + (i+1) + '.json', JSON.stringify(pcData[i], null, 4))
             var buf = new Buffer(2 * pcData[i].values.length)
             for (var j = 0; j < buf.length; j+=2) {

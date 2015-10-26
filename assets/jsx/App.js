@@ -14,6 +14,7 @@ var Router = ReactRouter.Router
 var Route = ReactRouter.Route
 var Radium = require('radium')
 var createBrowserHistory = require('history/lib/createBrowserHistory')
+var Bar = require('./Bar')
 var scatter = require('../js/scatter')
 
 var styles = {
@@ -31,12 +32,14 @@ var styles = {
         justifyContent: 'center'
     },
     menu: {
-        flex: '0 0 auto',
+        flex: '1 1 auto',
         padding: '10px',
         backgroundColor: '#000000',
         userSelect: 'none',
         width: '15%',
-        maxWidth: '250px'
+        maxWidth: '250px',
+        height: window.innerHeight,
+        overflowY: 'auto'
     },
     optionRow: {
         padding: '0 0 10px 0'
@@ -70,6 +73,10 @@ var styles = {
         ':hover': {
             fill: '#ffffff'
         }
+    },
+    bar: {
+        float: 'right',
+        backgroundColor: '#000000'
     }
 }
 
@@ -228,6 +235,9 @@ var ScatterApp = Radium(React.createClass({
     },
 
     loadAnnotationItems: function(callback) {
+        if (!config.annotationDir) {
+            return callback(null, null)
+        }
         var filename = config.annotationDir + '/annotations.json'
         superagent
             .get(filename)
@@ -277,8 +287,12 @@ var ScatterApp = Radium(React.createClass({
 
     loadAllAnnotations: function(items, callback) {
 
+        if (!items) {
+            return callback(null)
+        }
+        
         window.performance && window.performance.mark('annotations_load_start')
-
+        
         var itemsWithChildren = _.chain(items)
             .map(function(item) {
                 return [item, item.children]
@@ -461,11 +475,12 @@ var ScatterApp = Radium(React.createClass({
             var childItems = null
             if (this.state.openAnnotationItem === item) {
                 childItems = _.map(item.children, function(child) {
-                    var dynamicStyle = this.state.selectedAnnotationItem === child ? styles.selectedAnnotationItem : null
-                    var desc = !!child.numAnnotated ? child.numAnnotated : ''
+                    var dynamicStyle = this.state.selectedAnnotationItem === child ? styles.selectedAnnotationItem : {}
+                    var desc = (<span style={styles.annotationItemQuantity}>{!!child.numAnnotated ? child.numAnnotated : ''}</span>)
                     if (this.state.highlights && this.state.highlights[child.name.toLowerCase()]) {
                         var highlight = this.state.highlights[child.name.toLowerCase()]
-                        desc = Math.round(100 * highlight.numHighlighted / highlight.numHighlightedTotal) + ' %'
+                        var percentage = Math.round(100 * highlight.numHighlighted / highlight.numHighlightedTotal)
+                        desc = (<Bar width={50} height={10} percentage={percentage} style={styles.bar} />)
                         dynamicStyle = {
                             color: 'rgb(' + highlight.color.r + ', ' + highlight.color.g + ', ' + highlight.color.b + ')'
                         }
@@ -475,18 +490,19 @@ var ScatterApp = Radium(React.createClass({
                         key={child.name}
                         style={[styles.annotationItem, styles.annotationItemChild, dynamicStyle]}
                         onClick={this.onAnnotationClick.bind(null, child, true)}>
-                            {child.name.toUpperCase()}
+                            {child.name.toUpperCase().replace(/_/g, ' ')}
                             <span style={styles.annotationItemQuantity}>{desc}</span>
                         </div>
                     )
                 }, this)
             }
 
-            var dynamicStyle = this.state.selectedAnnotationItem === item ? styles.selectedAnnotationItem : null
-            var desc = !!item.numAnnotated ? item.numAnnotated : ''
+            var dynamicStyle = this.state.selectedAnnotationItem === item ? styles.selectedAnnotationItem : {}
+            var desc = (<span style={styles.annotationItemQuantity}>{!!item.numAnnotated ? item.numAnnotated : ''}</span>)
             if (this.state.highlights && this.state.highlights[item.name.toLowerCase()]) {
                 var highlight = this.state.highlights[item.name.toLowerCase()]
-                desc = Math.round(100 * highlight.numHighlighted / highlight.numHighlightedTotal) + ' %'
+                var percentage = Math.round(100 * highlight.numHighlighted / highlight.numHighlightedTotal)
+                desc = (<Bar width={50} height={10} percentage={percentage} style={styles.bar} />)
                 dynamicStyle = {
                     color: 'rgb(' + highlight.color.r + ', ' + highlight.color.g + ', ' + highlight.color.b + ')'
                 }
@@ -494,8 +510,8 @@ var ScatterApp = Radium(React.createClass({
             return (
                     <div key={item.name}>
                     <div style={[styles.annotationItem, dynamicStyle]} onClick={this.onAnnotationClick.bind(null, item, false)}>
-                    <div>{item.name.toUpperCase()}
-                    <span style={styles.annotationItemQuantity}>{desc}</span>
+                    <div>{item.name.toUpperCase().replace(/_/g, ' ')}
+                {desc}
                     </div>
                     </div>
                     {childItems}

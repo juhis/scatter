@@ -412,27 +412,24 @@ function setupGUI() {
     
     var gui = new dat.GUI()
     folder = gui.addFolder('Points')
-    folder.add(effectController, 'pointSize', 1, 10).name('Size')
+    folder.add(effectController, 'pointSize', 1, 10).name('SizeNotAnnotated')
     folder.add(effectController, 'pointSizeAnnotated', 1, 10).name('SizeAnnotated')
     folder.add(effectController, 'pointSizeHighlight', 1, 10).name('SizeHighlighted')
     folder.add(effectController, 'opacity', 0, 1).name('Opacity')    
     var folder = gui.addFolder('Colors')
     folder.add(effectController, 'hueAnnotated', 0, 1).name('HueAnnotated')
         .onChange(function(value) {
-            var color = new THREE.Color().setHSL(effectController.hueAnnotated, effectController.saturationAnnotated, effectController.lightnessAnnotated)
-            var rgb = 'rgb(' + Math.round(color.r * 255) + ',' + Math.round(color.g * 255) + ',' + Math.round(color.b * 255) + ')'
+            var rgb = 'rgb(' + Math.round(colorAnnotated.r * 255) + ',' + Math.round(colorAnnotated.g * 255) + ',' + Math.round(colorAnnotated.b * 255) + ')'
             react.updateAnnotationColor(rgb)
         })
     folder.add(effectController, 'saturationAnnotated', 0, 1).name('SaturationAnnotated')
         .onChange(function(value) {
-            var color = new THREE.Color().setHSL(effectController.hueAnnotated, effectController.saturationAnnotated, effectController.lightnessAnnotated)
-            var rgb = 'rgb(' + Math.round(color.r * 255) + ',' + Math.round(color.g * 255) + ',' + Math.round(color.b * 255) + ')'
+            var rgb = 'rgb(' + Math.round(colorAnnotated.r * 255) + ',' + Math.round(colorAnnotated.g * 255) + ',' + Math.round(colorAnnotated.b * 255) + ')'
             react.updateAnnotationColor(rgb)
         })
     folder.add(effectController, 'lightnessAnnotated', 0, 1).name('LightnessAnnotated')
         .onChange(function(value) {
-            var color = new THREE.Color().setHSL(effectController.hueAnnotated, effectController.saturationAnnotated, effectController.lightnessAnnotated)
-            var rgb = 'rgb(' + Math.round(color.r * 255) + ',' + Math.round(color.g * 255) + ',' + Math.round(color.b * 255) + ')'
+            var rgb = 'rgb(' + Math.round(colorAnnotated.r * 255) + ',' + Math.round(colorAnnotated.g * 255) + ',' + Math.round(colorAnnotated.b * 255) + ')'
             react.updateAnnotationColor(rgb)
         })
     folder.add(effectController, 'hueNotAnnotated', 0, 1).name('HueNotAnnotated')
@@ -447,6 +444,9 @@ function setupGUI() {
     folder.add(effectController, 'showFPS').name('FPS')
     folder = gui.addFolder('Mouse tracking')
     folder.add(effectController, 'highlight').name('Track mouse')
+        .onChange(function(value) {
+            react.updateHighlights(null)
+        })
     folder.add(effectController, 'highlightAnnotations').name('ShowAnnotations')
     folder.add(effectController, 'highlightThreshold', 0, 20).name('Threshold')
     folder = gui.addFolder('Head tracking')
@@ -500,9 +500,10 @@ function setupHeadTracker() {
 
 function addToDOM(domElement) {
 
-    var canvas = domElement.getElementsByTagName('canvas')
-    if (canvas.length > 0) {
-        domElement.removeChild(canvas[0])
+    renderer.domElement.id = 'scattercanvas'
+    var canvas = document.getElementById('scattercanvas')
+    if (canvas) {
+        canvas.parentNode.removeChild(canvas)
     }
     domElement.appendChild(renderer.domElement)
 
@@ -785,7 +786,7 @@ function uploadSavedFrames(id, callback) {
     
 function saveFrame(callback) {
 
-    var canvas = document.getElementsByTagName('canvas')[0]
+    var canvas = document.getElementById('scattercanvas')
     var png = canvas.toDataURL('image/png')
     savedFrames.push(png)
     callback()
@@ -860,6 +861,15 @@ function handleKeypress(e) {
     if (e.keyCode === 99) { // 'c'amera
         console.log(camera.position)
     }
+
+    if (e.keyCode === 109) { // track 'm'ouse
+        effectController.highlight = !effectController.highlight
+        react.updateHighlights(null)
+    }
+
+    if (e.keyCode === 102) { // toggle 'f'ps
+        effectController.showFPS = !effectController.showFPS
+    }
 }
 
 function handleMousemove(e) {
@@ -876,7 +886,9 @@ function handleMousemove(e) {
 
 function raycast(e) {
 
-    if (!effectController.highlight) return
+    if (!effectController.highlight) {
+        return        
+    }
         
     raycaster.setFromCamera(mouse, camera)
     var intersects = raycaster.intersectObject(pointCloud)
@@ -918,7 +930,11 @@ function raycast(e) {
                         }
                     }
                     highlights = highlights || {}
-                    var gray = Math.round(config.defaultGray + numAnn / intersects.length * (255 - config.defaultGray))
+                    //var gray = Math.round(numAnn / intersects.length * 255)
+                    var gray = Math.round(config.defaultDark + numAnn / intersects.length * (255 - config.defaultDark))
+                    if (numAnn === 0) {
+                        gray = 0
+                    }
                     highlights[name] = {
                         numHighlighted: numAnn,
                         numHighlightedTotal: intersects.length,
