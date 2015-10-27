@@ -512,6 +512,7 @@ function setupGUI() {
     folder.add(effectController, 'legendOpacity', 0, 1).name('LegendOpacity')
     folder.add(effectController, 'depthTest').name('DepthTest')
     folder.add(effectController, 'additiveBlending').name('AdditiveBlending')
+    gui.close()
 }
 
 function setupHeadTracker() {
