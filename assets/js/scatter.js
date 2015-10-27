@@ -23,11 +23,16 @@ var legendPlane, legendUniforms, legendShaderMaterial
 var lineMaterial
 
 var scale = 10
-var colorAnnotated = new THREE.Color().setHSL(config.hueAnnotated, config.saturationAnnotated, config.lightnessAnnotated)
-var colorNotAnnotated = new THREE.Color().setHSL(config.hueNotAnnotated, config.saturationNotAnnotated, config.lightnessNotAnnotated)
+var colorsAnnotated = [
+    new THREE.Color().setHSL(config.colorsAnnotated[0].h, config.colorsAnnotated[0].s, config.colorsAnnotated[0].l),
+    new THREE.Color().setHSL(config.colorsAnnotated[1].h, config.colorsAnnotated[1].s, config.colorsAnnotated[1].l),
+    new THREE.Color().setHSL(config.colorsAnnotated[2].h, config.colorsAnnotated[2].s, config.colorsAnnotated[2].l)
+]    
+var colorNotAnnotated = new THREE.Color().setHSL(config.colorNotAnnotated.h, config.colorNotAnnotated.s, config.colorNotAnnotated.l)
+var colorHighlight = new THREE.Color().setHSL(config.colorHighlight.h, config.colorHighlight.s, config.colorHighlight.l)
 
 var pointCloud, axes, grid, labels
-var destinations = [], annotations = [], prevAnnotations = [], annotationType = null
+var destinations = []
 
 var mouse = {
     x: -1,
@@ -325,7 +330,7 @@ function init(width, height) {
     
     camera = new THREE.PerspectiveCamera(45, width / (2/3 * height), 2, 100 * scale)
     //camera.position.set(3 * scale, 3 * scale, 3 * scale)
-    camera.position.set(0, 0, 3 * scale)
+    camera.position.set(0, 0, 5 * scale)
 
     projectionCameras = []
     var aspectRatio = width > height ? width / height : height / width
@@ -374,6 +379,16 @@ function init(width, height) {
 }
 
 function setupGUI() {
+
+    var hsvAnnotated = colorsAnnotated.map(function(color) {
+        var hsv = THREE.ColorConverter.getHSV(color)
+        hsv.h *= 360
+        return hsv
+    })
+    var hsvNotAnnotated = THREE.ColorConverter.getHSV(colorNotAnnotated)
+    hsvNotAnnotated.h *= 360
+    var hsvHighlight = THREE.ColorConverter.getHSV(colorHighlight)
+    hsvHighlight.h *= 360
     
     effectController = {
 
@@ -382,12 +397,11 @@ function setupGUI() {
         pointSizeHighlight: config.defaultPointSizeHighlight,
         opacity: config.defaultOpacity,
         
-        hueAnnotated: colorAnnotated.getHSL().h,
-        saturationAnnotated: colorAnnotated.getHSL().s,
-        lightnessAnnotated: colorAnnotated.getHSL().l,
-        hueNotAnnotated: colorNotAnnotated.getHSL().h,
-        saturationNotAnnotated: colorNotAnnotated.getHSL().s,
-        lightnessNotAnnotated: colorNotAnnotated.getHSL().l,
+        hsvAnnotated1: hsvAnnotated[0],
+        hsvAnnotated2: hsvAnnotated[1],
+        hsvAnnotated3: hsvAnnotated[2],
+        hsvNotAnnotated: hsvNotAnnotated,
+        hsvHighlight: hsvHighlight,
         
         showProjections: false,
         showLabels: false,
@@ -411,46 +425,65 @@ function setupGUI() {
     }
     
     var gui = new dat.GUI()
-    folder = gui.addFolder('Points')
+    var folder = gui.addFolder('Points')
     folder.add(effectController, 'pointSize', 1, 10).name('SizeNotAnnotated')
     folder.add(effectController, 'pointSizeAnnotated', 1, 10).name('SizeAnnotated')
     folder.add(effectController, 'pointSizeHighlight', 1, 10).name('SizeHighlighted')
     folder.add(effectController, 'opacity', 0, 1).name('Opacity')    
-    var folder = gui.addFolder('Colors')
-    folder.add(effectController, 'hueAnnotated', 0, 1).name('HueAnnotated')
+
+    folder = gui.addFolder('Colors')
+    folder.addColor(effectController, 'hsvNotAnnotated').name('NotAnnotated')
         .onChange(function(value) {
-            var rgb = 'rgb(' + Math.round(colorAnnotated.r * 255) + ',' + Math.round(colorAnnotated.g * 255) + ',' + Math.round(colorAnnotated.b * 255) + ')'
-            react.updateAnnotationColor(rgb)
+            colorNotAnnotated = THREE.ColorConverter.setHSV(new THREE.Color(), value.h / 360, value.s, value.v)
         })
-    folder.add(effectController, 'saturationAnnotated', 0, 1).name('SaturationAnnotated')
+    folder.addColor(effectController, 'hsvAnnotated1', 0, 1).name('Annotated1')
         .onChange(function(value) {
-            var rgb = 'rgb(' + Math.round(colorAnnotated.r * 255) + ',' + Math.round(colorAnnotated.g * 255) + ',' + Math.round(colorAnnotated.b * 255) + ')'
-            react.updateAnnotationColor(rgb)
+            colorsAnnotated[0] = THREE.ColorConverter.setHSV(new THREE.Color(), value.h / 360, value.s, value.v)
+            var rgbs = colorsAnnotated.map(function(color) {
+                return 'rgb(' + Math.round(color.r * 255) + ',' + Math.round(color.g * 255) + ',' + Math.round(color.b * 255) + ')'
+            })
+            react.updateAnnotationColors(rgbs)
         })
-    folder.add(effectController, 'lightnessAnnotated', 0, 1).name('LightnessAnnotated')
+    folder.addColor(effectController, 'hsvAnnotated2', 0, 1).name('Annotated2')
         .onChange(function(value) {
-            var rgb = 'rgb(' + Math.round(colorAnnotated.r * 255) + ',' + Math.round(colorAnnotated.g * 255) + ',' + Math.round(colorAnnotated.b * 255) + ')'
-            react.updateAnnotationColor(rgb)
+            console.log(value)
+            colorsAnnotated[1] = THREE.ColorConverter.setHSV(new THREE.Color(), value.h / 360, value.s, value.v)
+            var rgbs = colorsAnnotated.map(function(color) {
+                return 'rgb(' + Math.round(color.r * 255) + ',' + Math.round(color.g * 255) + ',' + Math.round(color.b * 255) + ')'
+            })
+            react.updateAnnotationColors(rgbs)
         })
-    folder.add(effectController, 'hueNotAnnotated', 0, 1).name('HueNotAnnotated')
-    folder.add(effectController, 'saturationNotAnnotated', 0, 1).name('SaturationNotAnnotated')
-    folder.add(effectController, 'lightnessNotAnnotated', 0, 1).name('LightnessNotAnnotated')
+    folder.addColor(effectController, 'hsvAnnotated3', 0, 1).name('Annotated3')
+        .onChange(function(value) {
+            colorsAnnotated[2] = THREE.ColorConverter.setHSV(new THREE.Color(), value.h / 360, value.s, value.v)
+            var rgbs = colorsAnnotated.map(function(color) {
+                return 'rgb(' + Math.round(color.r * 255) + ',' + Math.round(color.g * 255) + ',' + Math.round(color.b * 255) + ')'
+            })
+            react.updateAnnotationColors(rgbs)
+        })
+    folder.addColor(effectController, 'hsvHighlight', 0, 1).name('Highlight')
+        .onChange(function(value) {
+            colorHighlight = THREE.ColorConverter.setHSV(new THREE.Color(), value.h / 360, value.s, value.v)
+        })
+
     folder = gui.addFolder('Show')
-    folder.add(effectController, 'showProjections').name('Projections')
+    folder.add(effectController, 'showProjections').name('Projections').listen()
     folder.add(effectController, 'showLabels').name('ProjectionLabels')
     folder.add(effectController, 'showGrid').name('Grid')
     folder.add(effectController, 'gridOpacity', 0, 1).name('GridOpacity')
     folder.add(effectController, 'showAxes').name('Axes')
-    folder.add(effectController, 'showFPS').name('FPS')
+    folder.add(effectController, 'showFPS').name('FPS').listen()
+
     folder = gui.addFolder('Mouse tracking')
-    folder.add(effectController, 'highlight').name('Track mouse')
+    folder.add(effectController, 'highlight').name('Track mouse').listen()
         .onChange(function(value) {
             react.updateHighlights(null)
         })
     folder.add(effectController, 'highlightAnnotations').name('ShowAnnotations')
     folder.add(effectController, 'highlightThreshold', 0, 20).name('Threshold')
+
     folder = gui.addFolder('Head tracking')
-    folder.add(effectController, 'headtracking').name('Track head')
+    folder.add(effectController, 'headtracking').name('Track head').listen()
         .onChange(function(value) {
             if (value) {
                 if (!head.tracker) {
@@ -466,11 +499,14 @@ function setupGUI() {
                 camera.position.set(0, 0, 4 * scale)
                 pointCloud.rotation.set(0, 0, 0)
                 head.tracker.stop()
+                head.tracker.stopStream()
+                head.tracker = null
                 document.getElementById('inputVideo').style.display = 'none'
             }
         })
     folder.add(effectController, 'headXSensitivity', 0, 20).name('XSensitivity')
     folder.add(effectController, 'headYSensitivity', 0, 20).name('YSensitivity')
+
     folder = gui.addFolder('Other')
     folder.add(effectController, 'transitionSpeed', 1, 100).name('TransitionSpeed')
     folder.add(effectController, 'legendOpacity', 0, 1).name('LegendOpacity')
@@ -527,7 +563,7 @@ function animate() {
 }
 
 function render() {
-
+    
     // LPT: put TWEEN.update as the first thing in render to avoid jerky movement
     TWEEN.update()
 
@@ -537,12 +573,7 @@ function render() {
     
     uniforms.opacity.value = effectController.opacity
     //legendUniforms.opacity.value = effectController.legendOpacity
-    var hsl = colorAnnotated.getHSL()
-    
-    if (!isAnimating) {
-        colorAnnotated = new THREE.Color().setHSL(effectController.hueAnnotated, effectController.saturationAnnotated, effectController.lightnessAnnotated)
-    }
-    colorNotAnnotated = new THREE.Color().setHSL(effectController.hueNotAnnotated, effectController.saturationNotAnnotated, effectController.lightnessNotAnnotated)
+    var hsl = colorsAnnotated[0].getHSL()
 
     var targetHSLColor = new THREE.Color().setHSL(targetHSL.h, targetHSL.s, targetHSL.l)
     var prevTargetHSLColor = new THREE.Color().setHSL(prevTargetHSL.h, prevTargetHSL.s, prevTargetHSL.l)
@@ -567,23 +598,28 @@ function render() {
     
     for (var i = 0, i3 = 0; i < sizes.length; i++, i3 += 3) {
 
-        if (annotations && annotationType == 'continuous') {
+        if (react.state.selectedAnnotationItems.length > 0 && react.state.selectedAnnotationItems[0].type === 'continuous') {
             var h = hsl.h - customs[i] * config.continuousAnnotationScale
             var color = new THREE.Color().setHSL(h, hsl.s, hsl.l)
             colors[i3] = color.r
             colors[i3 + 1] = color.g
             colors[i3 + 2] = color.b
             sizes[i] = effectController.pointSize
-        } else if (annotations && annotations[i] === 1) {
-            colors[i3] = isAnimating ? targetHSLColor.r : colorAnnotated.r
-            colors[i3 + 1] = isAnimating ? targetHSLColor.g : colorAnnotated.g
-            colors[i3 + 2] = isAnimating ? targetHSLColor.b : colorAnnotated.b
+        } else if (react.state.selectedAnnotationValues[0] && react.state.selectedAnnotationValues[0][i] === 1) {
+            colors[i3] = isAnimating ? targetHSLColor.r : colorsAnnotated[0].r
+            colors[i3 + 1] = isAnimating ? targetHSLColor.g : colorsAnnotated[0].g
+            colors[i3 + 2] = isAnimating ? targetHSLColor.b : colorsAnnotated[0].b
             sizes[i] = isAnimating ? targetPointSize.size : effectController.pointSizeAnnotated
-        } else if (isAnimating && prevAnnotations && prevAnnotations[i] === 1) {
-            colors[i3] = prevTargetHSLColor.r
-            colors[i3 + 1] = prevTargetHSLColor.g
-            colors[i3 + 2] = prevTargetHSLColor.b
-            sizes[i] = prevTargetPointSize.size
+        } else if (react.state.selectedAnnotationValues[1] && react.state.selectedAnnotationValues[1][i] === 1) {
+            colors[i3] = isAnimating ? targetHSLColor.r : colorsAnnotated[1].r
+            colors[i3 + 1] = isAnimating ? targetHSLColor.g : colorsAnnotated[1].g
+            colors[i3 + 2] = isAnimating ? targetHSLColor.b : colorsAnnotated[1].b
+            sizes[i] = isAnimating ? targetPointSize.size : effectController.pointSizeAnnotated
+        } else if (react.state.selectedAnnotationValues[2] && react.state.selectedAnnotationValues[2][i] === 1) {
+            colors[i3] = isAnimating ? targetHSLColor.r : colorsAnnotated[2].r
+            colors[i3 + 1] = isAnimating ? targetHSLColor.g : colorsAnnotated[2].g
+            colors[i3 + 2] = isAnimating ? targetHSLColor.b : colorsAnnotated[2].b
+            sizes[i] = isAnimating ? targetPointSize.size : effectController.pointSizeAnnotated
         } else {
             colors[i3] = colorNotAnnotated.r
             colors[i3 + 1] = colorNotAnnotated.g
@@ -663,108 +699,6 @@ function render() {
     // renderer.render(legendScene, legendCamera)
 }
 
-function startAnimation(splines, tweenPos, tweenAnnotationNames, record) {
-
-    annotations = null
-    prevAnnotations= null
-    
-    var tweenLength = 1500
-    var tweenLength2 = 1500
-    var tweenTime = []
-    var tweens = []
-    for (var i = 0; i < splines.length - 1; i++) { // tween along splines, save last one
-        tweenTime.push({t: 0})
-        var tween = new TWEEN.Tween(tweenTime[i])
-            .to({t: 1}, tweenLength)
-            .easing(TWEEN.Easing.Quadratic.InOut)
-            .onUpdate(function(i) {
-                var point = splines[i].getPoint(tweenTime[i].t)
-                // if (point.x > -40) {
-                camera.position.set(point.x, point.y, point.z)
-                // }
-            }.bind(null, i))
-        tweens.push(tween)
-    }
-
-    var tweenTargetHSL = new TWEEN.Tween(targetHSL)
-        .to({l: 0.5}, tweenLength2)
-        .easing(TWEEN.Easing.Quadratic.InOut)
-        .onComplete(function() {
-            targetHSL.l = 1
-        })
-    var tweenTargetPointSize = new TWEEN.Tween(targetPointSize)
-        .to({size: config.defaultPointSizeAnnotated}, tweenLength2)
-        .easing(TWEEN.Easing.Quadratic.InOut)
-        .onComplete(function() {
-            targetPointSize.size = config.defaultPointSize
-        })
-    var tweenPrevTargetHSL = new TWEEN.Tween(prevTargetHSL)
-        .to({l: 1}, tweenLength2)
-        .easing(TWEEN.Easing.Quadratic.InOut)
-        .onComplete(function() {
-            prevTargetHSL.l = 0.5
-        })
-    var tweenPrevTargetPointSize = new TWEEN.Tween(prevTargetPointSize)
-        .to({size: config.defaultPointSize}, tweenLength2)
-        .easing(TWEEN.Easing.Quadratic.InOut)
-        .onComplete(function() {
-            prevTargetPointSize.size = config.defaultPointSizeAnnotated
-        })
-
-    for (var i = 0; i < tweenAnnotationNames.length; i++) {
-        tweens.push(new TWEEN.Tween(camera.position)
-                    .to(tweenPos[i], tweenLength2)
-                    .easing(TWEEN.Easing.Quadratic.InOut)
-                    .onStart(function(j) {
-                        react.setAnnotationByName(tweenAnnotationNames[j])
-                        tweenTargetHSL.start()
-                        tweenTargetPointSize.start()
-                    }.bind(this, i))
-                    .onComplete(function(j) {
-                        prevAnnotations = annotations && annotations.slice(0)
-                        annotations = null
-                        if (j == tweenAnnotationNames.length - 1) {
-                            tweenPrevTargetHSL.onComplete(function() {})
-                            tweenPrevTargetPointSize.onComplete(function() {})
-                        }
-                        tweenPrevTargetHSL.start()
-                        tweenPrevTargetPointSize.start()
-                    }.bind(this, i)))
-    }
-    
-    tweens.push(new TWEEN.Tween({t: 0})
-                .to({t: 1}, tweenLength)
-                .onUpdate(function() {
-                    var point = splines[splines.length - 1].getPoint(this.t)
-                    camera.position.set(point.x, point.y, point.z)
-                }))
-
-    for (var i = 0; i < tweens.length; i++) {
-        if (i < tweens.length - 1) {
-            tweens[i].chain(tweens[i+1])
-        } else {
-            tweens[i]
-                .onComplete(function() {
-                    isAnimating = false
-                    if (isRecording) {
-                        isRecording = false
-                        uploadSavedFrames(animationId, function(err) {
-                            if (err) {
-                                window.alert('could not upload png files to server: ' + err)
-                            } else {
-                                window.alert(savedFrames.length + ' png files uploaded to server with name ' + animationId)
-                                savedFrames = []
-                            }
-                        })
-                    }
-                })
-        }
-    }
-    tweens[0].start()
-    isAnimating = true
-    isRecording = record
-}
-
 function uploadSavedFrames(id, callback) {
     var numFrame = 0
     async.eachSeries(savedFrames, function(png, cb) {
@@ -808,9 +742,9 @@ function showSplines() {
 
 function handleKeypress(e) {
 
-    console.log('key', e.keyCode)
+    var key = e.keyCode || e.charCode
 
-    if (e.keyCode === 97 || e.keyCode === 65) { // 'a'nimate, 'A'nimate and record
+    if (key === 97 || key === 65) { // 'a'nimate, 'A'nimate and record
 
         var splines = []
         // zoom out from origo
@@ -838,7 +772,7 @@ function handleKeypress(e) {
             new THREE.Vector3(0, 0, 0)
         ]))
         
-        if (e.keyCode === 65) {
+        if (key === 65) {
             animationId = window.prompt('Please enter a name for your animation')
             if (animationId) {
                 startAnimation(splines, tweenPos, tweenAnnotations, true)
@@ -850,25 +784,41 @@ function handleKeypress(e) {
         }
     }
 
-    if (e.keyCode === 114) { // 'r'otate
+    if (key === 114) { // 'r'otate
         cameraControls.autoRotate = !cameraControls.autoRotate
     }
     
-    if (e.keyCode === 115) { // 's'ave frame
+    if (key === 115) { // 's'ave frame
         saveFrame('test')
     }
     
-    if (e.keyCode === 99) { // 'c'amera
+    if (key === 99) { // 'c'amera
         console.log(camera.position)
     }
 
-    if (e.keyCode === 109) { // track 'm'ouse
+    if (key === 102) { // toggle 'f'ps
+        effectController.showFPS = !effectController.showFPS
+    }
+
+    if (key === 103) { // toggle 'g'rid
+        effectController.showGrid = !effectController.showGrid
+    }
+
+    if (key === 108) { // toggle 'l'abels
+        effectController.showLabels = !effectController.showLabels
+    }
+
+    if (key === 109) { // track 'm'ouse
         effectController.highlight = !effectController.highlight
         react.updateHighlights(null)
     }
 
-    if (e.keyCode === 102) { // toggle 'f'ps
-        effectController.showFPS = !effectController.showFPS
+    if (key === 112) { // toggle 'p'rojections
+        effectController.showProjections = !effectController.showProjections
+    }
+
+    if (key === 120) { // toggle a'x'es
+        effectController.showAxes = !effectController.showAxes
     }
 }
 
@@ -894,32 +844,33 @@ function raycast(e) {
     var intersects = raycaster.intersectObject(pointCloud)
 
     var sizes = pointCloud.geometry.attributes.size.array
-    for (var i = 0; i < sizes.length; i++) {
-        if (annotations && annotations[i] === 1) {
-            sizes[i] = effectController.pointSizeAnnotated
-        } else {
-            sizes[i] = effectController.pointSize
-        }
-    }
+    var colors = pointCloud.geometry.attributes.color.array
 
     if (intersects.length > 0) {
 
-        // highlight intersecting samples or, if an annotation is selected, only annotated intersecting samples
+        // highlight intersecting samples or, if an annotation is selected, only annotated intersecting points
         for (var i = 0; i < intersects.length; i++) {
-            if (!annotations || annotations.length === 0 || annotations[intersects[i].index] === 1) {
+            if (react.state.selectedAnnotationValues.length === 0
+                || (react.state.selectedAnnotationValues[0] && react.state.selectedAnnotationValues[0][intersects[i].index] === 1)
+                || (react.state.selectedAnnotationValues[1] && react.state.selectedAnnotationValues[0][intersects[i].index] === 1)
+                || (react.state.selectedAnnotationValues[2] && react.state.selectedAnnotationValues[0][intersects[i].index] === 1)) {
                 sizes[intersects[i].index] = effectController.pointSizeHighlight
+                colors[3 * intersects[i].index] = colorHighlight.r
+                colors[3 * intersects[i].index + 1] = colorHighlight.g
+                colors[3 * intersects[i].index + 2] = colorHighlight.b
             }
         }
         
         if (effectController.highlightAnnotations && react.state.menuItems) {
             var highlights = null
-            var hsl = colorAnnotated.getHSL()
             // if an annotation is selected, only highlight its children or itself if no children
-            var items = react.state.menuItems
-            if (react.state.selectedAnnotationItem) {
-                items = react.state.selectedAnnotationItem.children || [react.state.selectedAnnotationItem]
-            }
-            for (var i = 0; i < items.length; i++) {
+            var items = react.state.menuItems.slice(0)
+            react.state.selectedAnnotationItems.forEach(function(item) {
+                if (react.state.openAnnotationItem === item) {
+                    items = item.children
+                }
+            })
+            for (var i = 0; i < items.length; i++) { // calculate number of highlighted points for each item
                 var name = items[i].name.toLowerCase()
                 if (items[i].type === 'binary' && react.state.annotations[name]) {
                     var ann = react.state.annotations[name]
@@ -930,7 +881,6 @@ function raycast(e) {
                         }
                     }
                     highlights = highlights || {}
-                    //var gray = Math.round(numAnn / intersects.length * 255)
                     var gray = Math.round(config.defaultDark + numAnn / intersects.length * (255 - config.defaultDark))
                     if (numAnn === 0) {
                         gray = 0
@@ -955,6 +905,7 @@ function raycast(e) {
     }
     
     pointCloud.geometry.attributes.size.needsUpdate = true
+    pointCloud.geometry.attributes.color.needsUpdate = true
 }
 
 var Scatter = {
@@ -972,7 +923,7 @@ var Scatter = {
         fillScene(dataX, dataY, dataZ)
         addToDOM(domElement)
         setupGUI()
-        printPerformance()
+        // printPerformance()
         animate()
 
         document.onkeypress = handleKeypress
@@ -992,32 +943,18 @@ var Scatter = {
         }
     },
 
-    setAnnotations: function(values, type, min, max) {
+    getAnnotationColorsRGBString: function() {
 
-        if (values && values.length != pointCloud.geometry.attributes.size.count) {
-            console.error('incorrect length of annotations: ' + values.length)
-        } else {
-            var custom = pointCloud.geometry.attributes.custom.array
-            for (var i = 0; i < custom.length; i++) {
-                if (type == 'continuous') {
-                    custom[i] = values[i] / 255
-                } else {
-                    custom[i] = 1
-                }
-            }
-            annotations = values
-            annotationType = type
-        }
+        return colorsAnnotated.map(function(color) {
+            return 'rgb(' + Math.round(color.r * 255) + ',' + Math.round(color.g * 255) + ',' + Math.round(color.b * 255) + ')'
+        })
     },
 
-    getAnnotationColor: function() {
-        var color = new THREE.Color().setHSL(effectController.hueAnnotated, effectController.saturationAnnotated, effectController.lightnessAnnotated)
-        return 'rgb(' + Math.round(color.r * 255) + ',' + Math.round(color.g * 255) + ',' + Math.round(color.b * 255) + ')'
-    },
+    cycleAnnotationColors: function(index) {
 
-    hide: function() {
-        renderer.domElement.style.display = 'none'
-    }
+        index = index || 0
+        colorsAnnotated.push(colorsAnnotated.splice(index, 1)[0])
+    },
 }
 
 module.exports = Scatter

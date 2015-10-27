@@ -10,7 +10,7 @@ To run:
   * node server/server.js
   * If you don't have node installed, any web server will do (animations cannot be saved without the node server, though): python -m SimpleHTTPServer
 
-See configuration in config/config.js to use your own dataset.
+See config/data.js to use your own dataset.
 
 To develop:
 

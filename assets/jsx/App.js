@@ -14,71 +14,9 @@ var Router = ReactRouter.Router
 var Route = ReactRouter.Route
 var Radium = require('radium')
 var createBrowserHistory = require('history/lib/createBrowserHistory')
+var styles = require('./styles')
 var Bar = require('./Bar')
 var scatter = require('../js/scatter')
-
-var styles = {
-    app: {
-        display: 'flex',
-        flexFlow: 'row nowrap',
-        cursor: 'default',
-        color: 'rgb(' + config.defaultGray + ',' + config.defaultGray + ',' + config.defaultGray + ')'
-    },
-    message: {
-        flex: '2 0 auto',
-        display: 'flex',
-        flexFlow: 'row nowrap',
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    menu: {
-        flex: '1 1 auto',
-        padding: '10px',
-        backgroundColor: '#000000',
-        userSelect: 'none',
-        width: '15%',
-        maxWidth: '250px',
-        height: window.innerHeight,
-        overflowY: 'auto'
-    },
-    optionRow: {
-        padding: '0 0 10px 0'
-    },
-    annotations: {
-        padding: ''
-    },
-    annotationsLoadAll: {
-        cursor: 'pointer',
-        fontSize: '0.75em',
-        padding: '4px 0',
-    },
-    annotationItem: {
-        cursor: 'pointer',
-        fontSize: '0.75em',
-        padding: '2px 0',
-    },
-    annotationItemChild: {
-        fontSize: '0.75em',
-        padding: '0 0 0 10px',
-    },
-    annotationItemQuantity: {
-        float: 'right'
-    },
-    selectedAnnotationItem: {
-        color: '#ffffff'
-    },
-    arrow: {
-        cursor: 'pointer',
-        fill: '#999999',
-        ':hover': {
-            fill: '#ffffff'
-        }
-    },
-    bar: {
-        float: 'right',
-        backgroundColor: '#000000'
-    }
-}
 
 var message = _.sample([
     'LOADING VISUALIZATION',
@@ -129,7 +67,8 @@ var ScatterApp = Radium(React.createClass({
             z: 0,
             numLoads: 0,
             isInitialized: false,
-            selectedAnnotationItem: null,
+            selectedAnnotationItems: [],
+            selectedAnnotationValues: [],
         }
     },
 
@@ -166,6 +105,7 @@ var ScatterApp = Radium(React.createClass({
                                        this.state.pointData[hashIndex['x']],
                                        this.state.pointData[hashIndex['y']],
                                        this.state.pointData[hashIndex['z']])
+                    this.updateAnnotationColors(scatter.getAnnotationColorsRGBString())
                     this.setState({
                         isInitialized: true
                     })
@@ -177,11 +117,10 @@ var ScatterApp = Radium(React.createClass({
     loadData: function(hashIndex, callback) {
 
         var numLoads = this.state.numLoads
-        window.performance && window.performance.mark('data_load_start_' + numLoads)
 
         async.eachSeries(_.keys(hashIndex), function(axis, cb) {
-            if (config.dataType === 'buffer') {
-                var filename = config.dataDir + '/' + config.dataPrefix + hashIndex[axis] + '.buffer'
+            if (config.data.type === 'buffer') {
+                var filename = config.data.dir + '/' + config.data.prefix + hashIndex[axis] + '.buffer'
                 superagent
                     .get(filename)
                     .on('request', function() {
@@ -197,8 +136,8 @@ var ScatterApp = Radium(React.createClass({
                             return cb(null)
                         }
                     }.bind(this))
-            } else if (config.dataType === 'json') {
-                var filename = config.dataDir + '/' + config.dataPrefix + hashIndex[axis] + '.json'
+            } else if (config.data.type === 'json') {
+                var filename = config.data.dir + '/' + config.data.prefix + hashIndex[axis] + '.json'
                 superagent
                     .get(filename)
                     .accept('json')
@@ -222,23 +161,21 @@ var ScatterApp = Radium(React.createClass({
                         }
                     }.bind(this))
             } else {
-                cb({name: 'ConfigError', message: 'Unknown dataType in config: ' + config.dataType})
+                cb({name: 'ConfigError', message: 'Unknown type in config.data: ' + config.data.type})
             }
         }.bind(this), function(err) {
             if (err) return callback(err)
             else {
-                window.performance && window.performance.mark('data_load_stop')
-                window.performance && window.performance.measure('data_load', 'data_load_start_' + numLoads, 'data_load_stop')
                 return callback(null)
             }
         })
     },
 
     loadAnnotationItems: function(callback) {
-        if (!config.annotationDir) {
+        if (!config.data.annotationDir) {
             return callback(null, null)
         }
-        var filename = config.annotationDir + '/annotations.json'
+        var filename = config.data.annotationDir + '/annotations.json'
         superagent
             .get(filename)
             .accept('json')
@@ -291,8 +228,6 @@ var ScatterApp = Radium(React.createClass({
             return callback(null)
         }
         
-        window.performance && window.performance.mark('annotations_load_start')
-        
         var itemsWithChildren = _.chain(items)
             .map(function(item) {
                 return [item, item.children]
@@ -301,10 +236,10 @@ var ScatterApp = Radium(React.createClass({
             .compact()
             .value()
 
-        if (config.annotationType === 'json') { // annotations are in separate files
+        if (config.data.annotationType === 'json') { // annotations are in separate files
             async.eachSeries(itemsWithChildren, function(item, cb) {
                 var lcase = item.name.toLowerCase()
-                var filename = config.annotationDir + '/' + item.filename
+                var filename = config.data.annotationDir + '/' + item.filename
                 superagent
                     .get(filename)
                     .accept('json')
@@ -321,17 +256,15 @@ var ScatterApp = Radium(React.createClass({
                 if (err) {
                     return callback(err)
                 } else {
-                    window.performance && window.performance.mark('annotations_load_stop')
-                    window.performance && window.performance.measure('annotations_load', 'annotations_load_start', 'annotations_load_stop')
                     this.setState({
                         annotations: this.state.annotations
                     })
                     return callback(null)
                 }
             }.bind(this))
-        } else if (config.annotationType === 'buffer') { // binary annotations // TODO bitmasking for binary binary annotations
+        } else if (config.data.annotationType === 'buffer') { // binary annotations // TODO bitmasking for binary binary annotations
             superagent
-                .get(config.annotationDir + '/annotations.buffer')
+                .get(config.data.annotationDir + '/annotations.buffer')
                 .on('request', function() {
                     this.xhr.responseType = 'arraybuffer'
                 })
@@ -349,8 +282,6 @@ var ScatterApp = Radium(React.createClass({
                             }
                             this.state.annotations[itemsWithChildren[i].name.toLowerCase()] = arr
                         }
-                        window.performance && window.performance.mark('annotations_load_stop')
-                        window.performance && window.performance.measure('annotations_load', 'annotations_load_start', 'annotations_load_stop')
                         this.setState({
                             annotations: this.state.annotations
                         })
@@ -358,31 +289,7 @@ var ScatterApp = Radium(React.createClass({
                     }
                 }.bind(this))
         } else {
-            callback({name: 'ConfigError', message: 'Unknown annotationType in config: ' + config.annotationType})
-        }
-    },
-
-    setAnnotationByName: function(name) {
-        var foundItem = null
-        _.forEach(this.state.menuItems, function(item) {
-            if (item.name.toLowerCase() === name) {
-                foundItem = item
-                return false
-            }
-        }.bind(this))
-        return this.setAnnotation(foundItem)
-    },
-    
-    setAnnotation: function(item) {
-        if (!item) {
-            scatter.setAnnotations(null)
-        } else {
-            var lcase = item.name.toLowerCase()
-            if (this.state.annotations[lcase]) {
-                scatter.setAnnotations(this.state.annotations[lcase], item.type, item.min, item.max)
-            } else {
-                console.error('annotation not found: ' + lcase)
-            }
+            callback({name: 'ConfigError', message: 'Unknown annotationType in config.data: ' + config.data.annotationType})
         }
     },
 
@@ -426,35 +333,81 @@ var ScatterApp = Radium(React.createClass({
         }
     },
 
-    updateAnnotationColor: function(color) {
-        styles.selectedAnnotationItem.color = color
-        this.setState({})
+    updateAnnotationColors: function(colors) {
+
+        for (var i = 0; i < colors.length; i++) {
+            styles.selectedAnnotationItems[i].color = colors[i]
+        }
+        this.setState({
+            // update
+        })
+    },
+
+    setAnnotationByName: function(name) {
+
+        var foundItem = null
+        _.forEach(this.state.menuItems, function(item) {
+            if (item.name.toLowerCase() === name) {
+                foundItem = item
+                return false
+            }
+        }.bind(this))
+        return this.setAnnotation(foundItem)
+    },
+
+    deselectAnnotation: function(index) {
+
+        this.state.selectedAnnotationItems.splice(index, 1)
+        this.state.selectedAnnotationValues.splice(index, 1)
+        styles.selectedAnnotationItems.push(styles.selectedAnnotationItems.splice(index, 1))
+        scatter.cycleAnnotationColors(index)
     },
     
+    // TODO if continuous, clear previous
     onAnnotationClick: function(item, isChild) {
 
-        if (this.state.selectedAnnotationItem === item || _.includes(item.children, this.state.selectedAnnotationItem)) {
-            this.setAnnotation(null)
-            var isOpen = this.state.openAnnotationItem === item
-            this.setState({
-                openAnnotationItem: isOpen ? null : item,
-                selectedAnnotationItem: null
-            })
+        var openItem = false, closeItem = false
+        var index = this.state.selectedAnnotationItems.indexOf(item)
+        if (index > -1) { // item is currently selected
+            this.deselectAnnotation(index)
+            if (this.state.openAnnotationItem === item) { // close item
+                if (item.children && item.children.length > 0) { // deselect selected children
+                    _.forEach(item.children, function(child) {
+                        var childIndex = this.state.selectedAnnotationItems.indexOf(child)
+                        if (childIndex > -1) {
+                            this.deselectAnnotation(childIndex)
+                        }
+                    }.bind(this))
+                }
+                closeItem = true
+            }            
         } else {
-            this.setAnnotation(item)
-            this.updateAnnotationColor(scatter.getAnnotationColor())
-            if (isChild) {
-                this.setState({
-                    selectedAnnotationItem: item
-                })
-            } else {
-                var isOpen = this.state.openAnnotationItem === item
-                this.setState({
-                    openAnnotationItem: isOpen ? null : item,
-                    selectedAnnotationItem: item
-                })
+            // keep max three annotations selected, fifo
+            if (this.state.selectedAnnotationItems.length === 3) {
+                this.state.selectedAnnotationItems.shift()
+                this.state.selectedAnnotationValues.shift()
+                // keep color order
+                styles.selectedAnnotationItems.push(styles.selectedAnnotationItems.shift())
+                scatter.cycleAnnotationColors()
+            } else if (this.state.selectedAnnotationItems.length === 0) { // open children dropdown if the item has children
+                if (item.children && item.children.length > 0) {
+                    openItem = true
+                }
+            } else if (isChild) { // deselect parent if selected
+                _.forEach(this.state.selectedAnnotationItems, function(possibleParent, parentIndex) {
+                    if (possibleParent.children && _.includes(possibleParent.children, item)) {
+                        this.deselectAnnotation(parentIndex)
+                        return false
+                    }
+                }.bind(this))
             }
+            this.state.selectedAnnotationItems.push(item)
+            this.state.selectedAnnotationValues.push(this.state.annotations[item.name.toLowerCase()])
         }
+
+        this.setState({
+            openAnnotationItem: openItem ? item : closeItem ? null : this.state.openAnnotationItem
+        })
     },
     
     render: function() {
@@ -475,7 +428,13 @@ var ScatterApp = Radium(React.createClass({
             var childItems = null
             if (this.state.openAnnotationItem === item) {
                 childItems = _.map(item.children, function(child) {
-                    var dynamicStyle = this.state.selectedAnnotationItem === child ? styles.selectedAnnotationItem : {}
+                    var dynamicStyle = null
+                    _.forEach(this.state.selectedAnnotationItems, function(selectedItem, selectedIndex) {
+                        if (child === selectedItem) {
+                            dynamicStyle = styles.selectedAnnotationItems[selectedIndex]
+                            return false
+                        }
+                    })
                     var desc = (<span style={styles.annotationItemQuantity}>{!!child.numAnnotated ? child.numAnnotated : ''}</span>)
                     if (this.state.highlights && this.state.highlights[child.name.toLowerCase()]) {
                         var highlight = this.state.highlights[child.name.toLowerCase()]
@@ -497,7 +456,13 @@ var ScatterApp = Radium(React.createClass({
                 }, this)
             }
 
-            var dynamicStyle = this.state.selectedAnnotationItem === item ? styles.selectedAnnotationItem : {}
+            var dynamicStyle = null
+            _.forEach(this.state.selectedAnnotationItems, function(selectedItem, selectedIndex) {
+                if (item === selectedItem) {
+                    dynamicStyle = styles.selectedAnnotationItems[selectedIndex]
+                    return false
+                }
+            })
             var desc = (<span style={styles.annotationItemQuantity}>{!!item.numAnnotated ? item.numAnnotated : ''}</span>)
             if (this.state.highlights && this.state.highlights[item.name.toLowerCase()]) {
                 var highlight = this.state.highlights[item.name.toLowerCase()]

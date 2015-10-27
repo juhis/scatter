@@ -2,7 +2,7 @@
 
 var restify = require('restify')
 var fs = require('fs')
-var config = require('../config/config.js')
+var config = require('../config/server.js')
 
 var rootDir = process.cwd().substring(__dirname.length - 6) === 'server' ? '../' : './'
 console.log('serving from %s', rootDir)

@@ -1,15 +1,9 @@
+// scatter configuration
+//
+// see data.js for dataset config and sercer.js for server config
+
 var config = {
 
-    port: 8080, // which port to run the server on
-    
-    dataDir: '/data/pc-eigenvectors', // directory for data files (one file per dimension)
-    dataType: 'buffer', // 'buffer' or 'json'
-    dataPrefix: 'PC', // file name prefix, files go 'PC1.buffer' (or 'PC1.json'), 'PC2.buffer' etc.
-    numDimensions: 100, // equal or smaller than the number of data files
-    
-    annotationDir: '/data/pc-annotations', // leave empty for no annotations
-    annotationType: 'buffer', // 'buffer' or 'json'
-    
     defaultGray: 153, // default shade for ui
     defaultDark: 99, // default dark shade for ui
 
@@ -26,18 +20,40 @@ var config = {
 
     continuousAnnotationScale: 0.35,
 
-    hueAnnotated: 0.54,
-    saturationAnnotated: 1,
-    lightnessAnnotated: 0.5,
-    hueNotAnnotated: 0.5,
-    saturationNotAnnotated: 0.8,
-    lightnessNotAnnotated: 1,
+    colorsAnnotated: [
+        {
+            h: 0.54,
+            s: 0.9,
+            l: 0.5
+        },
+        {
+            h: 0.25,
+            s: 0.9,
+            l: 0.5
+        },
+        {
+            h: 0.09,
+            s: 0.9,
+            l: 0.5
+        },
+    ],
+    colorNotAnnotated: {
+        h: 0.5,
+        s: 0.9,
+        l: 1
+    },
+    colorHighlight: {
+        h: 1,
+        s: 0.9,
+        l: 0.5
+    },
 
     defaultHeadXSensitivity: 8,
     defaultHeadYSensitivity: 8,
 }
 
 if (typeof module === 'object' && module.exports) {
+    config.data = require('./data')
     module.exports = config
 }
 if (typeof window === 'object') {
