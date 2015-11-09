@@ -1,6 +1,7 @@
 'use strict'
 
 module.exports = {
+
     app: {
         display: 'flex',
         flexFlow: 'row nowrap',
@@ -20,7 +21,8 @@ module.exports = {
         backgroundColor: '#000000',
         userSelect: 'none',
         width: '15%',
-        maxWidth: '250px',
+        maxWidth: '300px',
+        minWidth: '150px',
         height: window.innerHeight,
         overflowY: 'auto'
     },
@@ -68,5 +70,10 @@ module.exports = {
     bar: {
         float: 'right',
         backgroundColor: '#000000'
+    },
+    spread: {
+        cursor: 'pointer',
+        float: 'left',
+        padding: '5px 5px 0 0'
     }
 }

@@ -23,6 +23,7 @@ var legendPlane, legendUniforms, legendShaderMaterial
 var lineMaterial
 
 var scale = 10
+var textSize = 0.1 * scale
 var colorsAnnotated = [
     new THREE.Color().setHSL(config.colorsAnnotated[0].h, config.colorsAnnotated[0].s, config.colorsAnnotated[0].l),
     new THREE.Color().setHSL(config.colorsAnnotated[1].h, config.colorsAnnotated[1].s, config.colorsAnnotated[1].l),
@@ -65,46 +66,48 @@ function printPerformance() {
     }
 }
 
-function drawTexts() {
+function drawTexts(config) {
 
     labels = new THREE.Object3D()
     var geo, text
     var mat = new THREE.MeshBasicMaterial({color: 0xffffff})
-    var textSize = 0.1 * scale
 
     // XY plane
-    geo = new THREE.TextGeometry('X', {size: textSize, height: 1, bevelEnabled: false})
+    geo = new THREE.TextGeometry((config && config.labels && config.labels[0]) || 'X', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
     text.position.set(textSize / 2, -1.5 * textSize, -1000 * scale)
     labels.add(text)
-    geo = new THREE.TextGeometry('Y', {size: textSize, height: 1, bevelEnabled: false})
+    geo = new THREE.TextGeometry((config && config.labels && config.labels[1]) || 'Y', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
+    text.rotation.z = Math.PI / 2
     text.position.set(-1.2 * textSize, textSize / 2, -1000 * scale)
     labels.add(text)
 
     // XZ plane
-    geo = new THREE.TextGeometry('X', {size: textSize, height: 1, bevelEnabled: false})
+    geo = new THREE.TextGeometry((config && config.labels && config.labels[0]) || 'X', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
     text.rotation.x = Math.PI / 2
     text.position.set(textSize / 2, -1000 * scale, -1.5 * textSize)
     labels.add(text)
-    geo = new THREE.TextGeometry('Z', {size: textSize, height: 1, bevelEnabled: false})
+    geo = new THREE.TextGeometry((config && config.labels && config.labels[2]) || 'Z', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
+    text.rotation.z = Math.PI / 2
     text.rotation.x = Math.PI / 2
     text.position.set(-1.2 * textSize, -1000 * scale, textSize / 2)
     labels.add(text)
 
     // YZ plane
-    geo = new THREE.TextGeometry('Y', {size: textSize, height: 1, bevelEnabled: false})
+    geo = new THREE.TextGeometry((config && config.labels && config.labels[1]) || 'Y', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
     text.rotation.z = Math.PI / 2
     text.rotation.y = Math.PI / 2
     text.position.set(-1000 * scale, -1.2 * textSize, textSize / 2)
     labels.add(text)
-    geo = new THREE.TextGeometry('Z', {size: textSize, height: 1, bevelEnabled: false})
+    geo = new THREE.TextGeometry((config && config.labels && config.labels[2]) || 'Z', {size: textSize, height: 1, bevelEnabled: false})
     text = new THREE.Mesh(geo, mat)
     text.rotation.z = Math.PI / 2
     text.rotation.y = Math.PI / 2
+    text.rotation.x = Math.PI / 2
     text.position.set(-1000 * scale, textSize / 2, -1.5 * textSize)
     labels.add(text)
 
@@ -328,7 +331,7 @@ function init(width, height) {
 
     // CAMERAS
     
-    camera = new THREE.PerspectiveCamera(45, width / (2/3 * height), 2, 100 * scale)
+    camera = new THREE.PerspectiveCamera(45, width / (2/3 * height), 0.1, 100 * scale)
     //camera.position.set(3 * scale, 3 * scale, 3 * scale)
     camera.position.set(0, 0, 5 * scale)
 
@@ -345,9 +348,11 @@ function init(width, height) {
         }
         if (i === 1) {
             cam.up.set(0, 0, 1)
+            cam.position.y = -1
         }
         if (i === 2) {
             cam.up.set(0, 0, 1)
+            cam.position.x = 1
         }
         projectionCameras.push(cam)
     }
@@ -674,12 +679,6 @@ function render() {
     if (effectController.showProjections) {
         for (var i = 0; i < 3; i++) {
             var cam = projectionCameras[i]
-            if (i === 1) {
-                cam.position.y = -1
-            }
-            if (i === 2) {
-                cam.position.x = 1
-            }
             cam.lookAt(cameraControls.target)
             renderer.setViewport(i * 1 / 3 * renderer.domElement.offsetWidth, 0, 1 / 3 * renderer.domElement.offsetWidth, 1 / 3 * renderer.domElement.offsetHeight)
             renderer.render(scene, cam)
@@ -824,6 +823,7 @@ function handleKeypress(e) {
 }
 
 function handleMousemove(e) {
+
     var width = renderer.getSize().width
     var height = renderer.getSize().height
     if (effectController.showProjections) {
@@ -911,7 +911,7 @@ function raycast(e) {
 
 var Scatter = {
 
-    initialize: function(domElement, reactClass, width, height, dataX, dataY, dataZ) {
+    initialize: function(domElement, reactClass, width, height, dataX, dataY, dataZ, config) {
 
         console.log('initializing scatterplot, data length: ' + dataX.length)
         react = reactClass
@@ -920,8 +920,14 @@ var Scatter = {
         //drawLegendPlane()
         drawGrid()
         drawAxes()
-        drawTexts()
+        drawTexts(config)
         fillScene(dataX, dataY, dataZ)
+        if (config.onlyPositive === true) { // translate origo to the halfway point
+            pointCloud.position.x = -scale / 2
+            pointCloud.position.y = -scale / 2
+            pointCloud.position.z = -scale / 2
+            // pointCloud.scale.multiplyScalar(2)
+        }
         addToDOM(domElement)
         setupGUI()
         // printPerformance()
@@ -932,6 +938,10 @@ var Scatter = {
 
         console.log('scatterplot initialized')
     },
+
+    resize: function(width, height) {
+        renderer.setSize(width, height)
+    },
     
     setValues: function(axis, values) {
         
@@ -941,6 +951,27 @@ var Scatter = {
                 y: axis === 'y' ? 2 * scale * (values[i] / 65536 - 0.5) : destinations[i] ? destinations[i].y : null,
                 z: axis === 'z' ? 2 * scale * (values[i] / 65536 - 0.5) : destinations[i] ? destinations[i].z : null,
             }
+        }
+    },
+
+    setLabel: function(axis, label) {
+
+        if (!axis || !label) return
+
+        if (axis === 'x') {
+            var geo = new THREE.TextGeometry(label, {size: textSize, height: 1, bevelEnabled: false})
+            labels.children[0].geometry = geo
+            labels.children[2].geometry = geo
+        }
+        if (axis === 'y') {
+            var geo = new THREE.TextGeometry(label, {size: textSize, height: 1, bevelEnabled: false})
+            labels.children[1].geometry = geo
+            labels.children[4].geometry = geo
+        }
+        if (axis === 'z') {
+            var geo = new THREE.TextGeometry(label, {size: textSize, height: 1, bevelEnabled: false})
+            labels.children[3].geometry = geo
+            labels.children[5].geometry = geo
         }
     },
 

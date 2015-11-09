@@ -1,12 +1,22 @@
 var data = {
 
-    dir: '/data/example', // directory for data files (one file per dimension)
-    type: 'buffer', // 'buffer' or 'json'
-    prefix: 'PC', // file name prefix, files go 'PC1.buffer' (or 'PC1.json'), 'PC2.buffer' etc.
-    numDimensions: 100, // equal or smaller than the number of data files
+    // directory for data files (one file per dimension)
+    dir: '/data/example',
+    // data type can be 'buffer' or 'json'
+    type: 'buffer',
+    // file name prefix, files go 'prefix1.buffer' (or 'prefix1.json'), 'prefix2.buffer' etc.
+    prefix: 'PC',
+    // number of dimensions available in the ui, equal or smaller than the number of data files
+    numDimensions: 6,
+    // the scatterplot will be positioned differently if data only contains positive numbers
+    onlyPositive: false,
+    // whether data contains most informative dimensions
+    spread: false,
     
-    annotationDir: '/data/example_annotations_binary', // leave empty for no annotations
-    annotationType: 'buffer', // 'buffer' or 'json'
+    // leave annotationDir empty for no annotations
+    annotationDir: 'data/example_annotations_binary',
+    // annotation type can be 'buffer' or 'json'
+    annotationType: 'buffer',
 }
 
 if (typeof module === 'object' && module.exports) {

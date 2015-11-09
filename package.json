@@ -5,6 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "async": "^1.4.2",
+    "genstats": "0.0.1",
     "history": "^1.12.1",
     "lodash": "^3.10.1",
     "radium": "^0.14.1",

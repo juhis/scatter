@@ -15,6 +15,7 @@ var Route = ReactRouter.Route
 var Radium = require('radium')
 var createBrowserHistory = require('history/lib/createBrowserHistory')
 var styles = require('./styles')
+var Spread = require('./Spread')
 var Bar = require('./Bar')
 var scatter = require('../js/scatter')
 
@@ -75,12 +76,12 @@ var ScatterApp = Radium(React.createClass({
     componentDidMount: function() {
 
         var domNode = React.findDOMNode(this)
-        var hashIndex = {x: 1, y: 2, z: 3}
+        var dimensions = [1, 2, 3]
 
         async.waterfall([
             this.loadAnnotationItems,
             this.loadAllAnnotations,
-            this.loadData.bind(this, hashIndex)
+            this.loadData.bind(this, dimensions)
         ], function(err) {
             if (err) {
                 this.setState({
@@ -90,9 +91,9 @@ var ScatterApp = Radium(React.createClass({
             } else {
                 this.setState({
                     pointData: this.state.pointData,
-                    x: hashIndex['x'],
-                    y: hashIndex['y'],
-                    z: hashIndex['z'],
+                    x: dimensions[0],
+                    y: dimensions[1],
+                    z: dimensions[2],
                     numLoads: this.state.numLoads + 1
                 })
                 setTimeout(function() { // timeout to allow state update before scatter initialization
@@ -102,10 +103,12 @@ var ScatterApp = Radium(React.createClass({
                                        this,
                                        scatterWidth,
                                        scatterHeight,
-                                       this.state.pointData[hashIndex['x']],
-                                       this.state.pointData[hashIndex['y']],
-                                       this.state.pointData[hashIndex['z']])
+                                       this.state.pointData[dimensions[0]],
+                                       this.state.pointData[dimensions[1]],
+                                       this.state.pointData[dimensions[2]],
+                                       config.data)
                     this.updateAnnotationColors(scatter.getAnnotationColorsRGBString())
+                    window.addEventListener('resize', this.handleResize);
                     this.setState({
                         isInitialized: true
                     })
@@ -114,13 +117,24 @@ var ScatterApp = Radium(React.createClass({
         }.bind(this))
     },
 
-    loadData: function(hashIndex, callback) {
+    handleResize: function(e) {
+        
+        styles.menu.height = window.innerHeight
+        var scatterWidth = window.innerWidth - ((this.refs.menu && this.refs.menu.getDOMNode().offsetWidth) || 100)
+        var scatterHeight = window.innerHeight
+        scatter.resize(scatterWidth, scatterHeight)
+        this.setState({
+            //update
+        })
+    },
+
+    loadData: function(dimensions, callback) {
 
         var numLoads = this.state.numLoads
 
-        async.eachSeries(_.keys(hashIndex), function(axis, cb) {
+        async.eachSeries(dimensions, function(dimension, cb) {
             if (config.data.type === 'buffer') {
-                var filename = config.data.dir + '/' + config.data.prefix + hashIndex[axis] + '.buffer'
+                var filename = config.data.dir + '/' + config.data.prefix + dimension + '.buffer'
                 superagent
                     .get(filename)
                     .on('request', function() {
@@ -132,12 +146,12 @@ var ScatterApp = Radium(React.createClass({
                             return cb(err)
                         } else {
                             var arr = new Uint16Array(res.xhr.response)
-                            this.state.pointData[hashIndex[axis]] = arr
+                            this.state.pointData[dimension] = arr
                             return cb(null)
                         }
                     }.bind(this))
             } else if (config.data.type === 'json') {
-                var filename = config.data.dir + '/' + config.data.prefix + hashIndex[axis] + '.json'
+                var filename = config.data.dir + '/' + config.data.prefix + dimension + '.json'
                 superagent
                     .get(filename)
                     .accept('json')
@@ -207,8 +221,6 @@ var ScatterApp = Radium(React.createClass({
         var error = null
         if (!item.name || !item.type) {
             error = {name: 'DataError', message: filename + ': items have to contain .name and .type'}
-        } else if (item.type === 'binary' && item.numAnnotated == undefined) {
-            error = {name: 'DataError', message: filename + ': binary items have to contain .numAnnotated'}
         } else if (item.type === 'continuous' && (item.min == undefined || item.max == undefined)) {
             error = {name: 'DataError', message: filename + ': continuous items have to contain .min and .max'}
         } else if (item.type !== 'binary' && item.type !== 'continuous') {
@@ -238,6 +250,9 @@ var ScatterApp = Radium(React.createClass({
 
         if (config.data.annotationType === 'json') { // annotations are in separate files
             async.eachSeries(itemsWithChildren, function(item, cb) {
+                if (!item.filename) {
+                    item.filename = 'annotations_' + item.name.replace(/\s/g, '_') + '.json'
+                }
                 var lcase = item.name.toLowerCase()
                 var filename = config.data.annotationDir + '/' + item.filename
                 superagent
@@ -294,40 +309,71 @@ var ScatterApp = Radium(React.createClass({
     },
 
     updateHighlights: function(highlights) {
+
         this.setState({
             highlights: highlights
         })
     },
-    
-    setComponent: function(axis, component) {
 
-        if (this.state.pointData[component]) {
-            scatter.setValues(axis, this.state.pointData[component])
-            this.setState({
-                pointData: this.state.pointData,
-                x: axis === 'x' ? component : this.state.x,
-                y: axis === 'y' ? component : this.state.y,
-                z: axis === 'z' ? component : this.state.z,
-            })
+    setDimensions: function(dimensions) {
+
+        if (!dimensions || dimensions.length !== 3) {
+            return console.warn('setDimensions takes three dimensions, got', dimensions)
+        }
+
+        async.each(dimensions, function(dimension, cb) { // load data for each dimension if not loaded
+            if (!this.state.pointData[dimension]) {
+                this.loadData(dimension, function(err) {
+                    if (err) {
+                        return cb(err)
+                    } else {
+                        return cb(null)
+                    }
+                })
+            } else {
+                return cb(null)
+            }
+        }.bind(this), function(err) {
+            if (err) {
+                this.setState({
+                    error: err
+                })
+            } else {
+                this.setDimension('x', dimensions[0], true)
+                this.setDimension('y', dimensions[1], true)
+                this.setDimension('z', dimensions[2], true)
+            }
+        }.bind(this))
+    },
+    
+    setDimension: function(axis, dimension, spread) {
+
+        if (this.state.pointData[dimension]) {
+            scatter.setValues(axis, this.state.pointData[dimension])
+            scatter.setLabel(axis, config.data.labels[dimension - 1])
+            var newState = {}
+            newState[axis] = dimension
+            if (spread !== true) {
+                newState.spreadAnnotationItem = null
+            }
+            this.setState(newState)
         } else {
-            var obj = {}
-            obj[axis] = component
-            this.loadData(obj, function(err) {
+            this.loadData([dimension], function(err) {
                 if (err) {
-                    scatter.hide()
                     this.setState({
                         error: err
                     })
                     return console.error(err)
                 } else {
-                    scatter.setValues(axis, this.state.pointData[component])
-                    this.setState({
-                        pointData: this.state.pointData,
-                        x: obj['x'] || this.state.x,
-                        y: obj['y'] || this.state.y,
-                        z: obj['z'] || this.state.z,
-                        numLoads: this.state.numLoads + 1
-                    })
+                    scatter.setValues(axis, this.state.pointData[dimension])
+                    scatter.setLabel(axis, config.data.labels[dimension - 1])
+                    var newState = {}
+                    newState[axis] = dimension
+                    if (spread !== true) {
+                        newState.spreadAnnotationItem = null
+                    }
+                    newState.numLoads = this.state.numLoads + 1
+                    this.setState(newState)
                 }
             }.bind(this))
         }
@@ -364,7 +410,7 @@ var ScatterApp = Radium(React.createClass({
     },
     
     // TODO if continuous, clear previous
-    onAnnotationClick: function(item, isChild) {
+    onAnnotationClick: function(item, isChild, setDimensions) {
 
         var openItem = false, closeItem = false
         var index = this.state.selectedAnnotationItems.indexOf(item)
@@ -408,17 +454,24 @@ var ScatterApp = Radium(React.createClass({
         this.setState({
             openAnnotationItem: openItem ? item : closeItem ? null : this.state.openAnnotationItem
         })
+
+        if (setDimensions) {
+            this.setDimensions(item.dimensions)
+            this.setState({
+                spreadAnnotationItem: item
+            })
+        }
     },
     
     render: function() {
 
-        var axisOptions = _.map(['x', 'y', 'z'], function(a) {
+        var axisOptions = _.map(['x', 'y', 'z'], function(a, i) {
             return (
                     <div key={'options' + a} style={styles.optionRow}>
-                    <span style={{paddingRight: '10px'}}>{a.toUpperCase()}</span>
-                    <Arrow direction='left' onClick={this.setComponent.bind(null, a, this.state[a] - 1)} disabled={this.state[a] - 1 < 1} />
+                    <span style={{cursor: 'pointer', paddingRight: '10px'}} onClick={this.setDimension.bind(null, a, (i + 1))}>{a.toUpperCase()}</span>
+                    <Arrow direction='left' onClick={this.setDimension.bind(null, a, this.state[a] - 1)} disabled={this.state[a] - 1 < 1} />
                     <span style={{padding: '0 5px'}}>{this.state[a]}</span>
-                    <Arrow direction='right' onClick={this.setComponent.bind(null, a, this.state[a] + 1)} disabled={this.state[a] + 1 > (config.numDimensions || 10) || this.state[a] < 1} />
+                    <Arrow direction='right' onClick={this.setDimension.bind(null, a, this.state[a] + 1)} disabled={this.state[a] + 1 > (config.data.numDimensions || 10) || this.state[a] < 1} />
                 </div>
             )
         }, this)
@@ -472,9 +525,16 @@ var ScatterApp = Radium(React.createClass({
                     color: 'rgb(' + highlight.color.r + ', ' + highlight.color.g + ', ' + highlight.color.b + ')'
                 }
             }
+            var spreadStyle = styles.spread
+            if (this.state.spreadAnnotationItem === item) {
+                spreadStyle = _.clone(styles.spread)
+                spreadStyle.color = '#ffffff'
+            }
             return (
                     <div key={item.name}>
-                    <div style={[styles.annotationItem, dynamicStyle]} onClick={this.onAnnotationClick.bind(null, item, false)}>
+                    {config.data.spread ? (<Spread width={10} height={10} style={spreadStyle} dimensions={item.dimensions} maxDimensions={config.data.numDimensions}
+                                           onClick={this.onAnnotationClick.bind(null, item, false, true)} />) : null}
+                    <div style={[styles.annotationItem, dynamicStyle]} onClick={this.onAnnotationClick.bind(null, item, false, false)}>
                     <div>{item.name.toUpperCase().replace(/_/g, ' ')}
                 {desc}
                     </div>

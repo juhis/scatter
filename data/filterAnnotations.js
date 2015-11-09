@@ -9,6 +9,7 @@ if (process.argv.length != 5) {
 }
 if (!fs.existsSync(process.argv[2])) {
     console.error('directory does not exist: ' + process.argv[2])
+    process.exit(1)
 }
 
 var samples = {}
