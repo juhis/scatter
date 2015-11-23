@@ -81,6 +81,7 @@ var ScatterApp = Radium(React.createClass({
         async.waterfall([
             this.loadAnnotationItems,
             this.loadAllAnnotations,
+            this.loadLabels,
             this.loadData.bind(this, dimensions)
         ], function(err) {
             if (err) {
@@ -106,6 +107,7 @@ var ScatterApp = Radium(React.createClass({
                                        this.state.pointData[dimensions[0]],
                                        this.state.pointData[dimensions[1]],
                                        this.state.pointData[dimensions[2]],
+                                       this.state.labels,
                                        config.data)
                     this.updateAnnotationColors(scatter.getAnnotationColorsRGBString())
                     window.addEventListener('resize', this.handleResize);
@@ -128,13 +130,34 @@ var ScatterApp = Radium(React.createClass({
         })
     },
 
-    loadData: function(dimensions, callback) {
+    loadLabels: function(callback) {
 
-        var numLoads = this.state.numLoads
+        var filename = config.data.dir + '/labels.json'
+
+        superagent
+            .get(filename)
+            .accept('json')
+            .end(function(err, res) {
+                if (err) {
+                    if (err.message === 'Not Found') {
+                        return callback(null)
+                    } else {
+                        return callback(err)
+                    }
+                } else {
+                    this.setState({
+                        labels: res.body
+                    })
+                    return callback(null)
+                }
+            }.bind(this))
+    },
+
+    loadData: function(dimensions, callback) {
 
         async.eachSeries(dimensions, function(dimension, cb) {
             if (config.data.type === 'buffer') {
-                var filename = config.data.dir + '/' + config.data.prefix + dimension + '.buffer'
+                var filename = config.data.dir + '/' + dimension + '.buffer'
                 superagent
                     .get(filename)
                     .on('request', function() {
@@ -151,7 +174,7 @@ var ScatterApp = Radium(React.createClass({
                         }
                     }.bind(this))
             } else if (config.data.type === 'json') {
-                var filename = config.data.dir + '/' + config.data.prefix + dimension + '.json'
+                var filename = config.data.dir + '/' + dimension + '.json'
                 superagent
                     .get(filename)
                     .accept('json')
@@ -167,7 +190,11 @@ var ScatterApp = Radium(React.createClass({
                                 // scale to 0-65535
                                 var arr = new Uint16Array(data.values.length)
                                 for (var i = 0; i < data.values.length; i++) {
-                                    arr[i] = (data.values[i] / data.max + 1) / 2 * 65535
+                                    if (data.min != undefined) {
+                                        arr[i] = ((data.values[i] - data.min) / (data.max - data.min) + 1) / 2 * 65535
+                                    } else {
+                                        arr[i] = (data.values[i] / data.max + 1) / 2 * 65535
+                                    }                                        
                                 }
                                 this.state.pointData[data.index] = arr
                                 return cb(null)
@@ -349,8 +376,10 @@ var ScatterApp = Radium(React.createClass({
     setDimension: function(axis, dimension, spread) {
 
         if (this.state.pointData[dimension]) {
-            scatter.setValues(axis, this.state.pointData[dimension])
-            scatter.setLabel(axis, config.data.labels[dimension - 1])
+            scatter.setValues(axis, this.state.pointData[dimension], config.data)
+            if (this.state.labels) {
+                scatter.setLabel(axis, this.state.labels[dimension - 1])
+            }
             var newState = {}
             newState[axis] = dimension
             if (spread !== true) {
@@ -365,8 +394,10 @@ var ScatterApp = Radium(React.createClass({
                     })
                     return console.error(err)
                 } else {
-                    scatter.setValues(axis, this.state.pointData[dimension])
-                    scatter.setLabel(axis, config.data.labels[dimension - 1])
+                    scatter.setValues(axis, this.state.pointData[dimension], config.data)
+                    if (this.state.labels) {
+                        scatter.setLabel(axis, this.state.labels[dimension - 1])
+                    }
                     var newState = {}
                     newState[axis] = dimension
                     if (spread !== true) {
@@ -409,7 +440,6 @@ var ScatterApp = Radium(React.createClass({
         scatter.cycleAnnotationColors(index)
     },
     
-    // TODO if continuous, clear previous
     onAnnotationClick: function(item, isChild, setDimensions) {
 
         var openItem = false, closeItem = false
@@ -428,31 +458,45 @@ var ScatterApp = Radium(React.createClass({
                 closeItem = true
             }            
         } else {
-            // keep max three annotations selected, fifo
-            if (this.state.selectedAnnotationItems.length === 3) {
-                this.state.selectedAnnotationItems.shift()
-                this.state.selectedAnnotationValues.shift()
-                // keep color order
-                styles.selectedAnnotationItems.push(styles.selectedAnnotationItems.shift())
-                scatter.cycleAnnotationColors()
-            } else if (this.state.selectedAnnotationItems.length === 0) { // open children dropdown if the item has children
-                if (item.children && item.children.length > 0) {
-                    openItem = true
+            if (item.type === 'continuous') {
+                // deselect all selected annotations
+                for (var i = 0, len = this.state.selectedAnnotationItems.length; i < len; i++) {
+                    this.state.selectedAnnotationItems.shift()
+                    this.state.selectedAnnotationValues.shift()
                 }
-            } else if (isChild) { // deselect parent if selected
-                _.forEach(this.state.selectedAnnotationItems, function(possibleParent, parentIndex) {
-                    if (possibleParent.children && _.includes(possibleParent.children, item)) {
-                        this.deselectAnnotation(parentIndex)
-                        return false
+            } else {
+                // if a continuous annotation is selected, deselect it
+                if (this.state.selectedAnnotationItems.length === 1 && this.state.selectedAnnotationItems[0].type === 'continuous') {
+                    this.state.selectedAnnotationItems.shift()
+                    this.state.selectedAnnotationValues.shift()
+                }
+                // keep max three annotations selected, fifo
+                if (this.state.selectedAnnotationItems.length === 3) {
+                    this.state.selectedAnnotationItems.shift()
+                    this.state.selectedAnnotationValues.shift()
+                    // keep color order
+                    styles.selectedAnnotationItems.push(styles.selectedAnnotationItems.shift())
+                    scatter.cycleAnnotationColors()
+                } else if (this.state.selectedAnnotationItems.length === 0) { // open children dropdown if the item has children
+                    if (item.children && item.children.length > 0) {
+                        openItem = true
                     }
-                }.bind(this))
+                } else if (isChild) { // deselect parent if selected
+                    _.forEach(this.state.selectedAnnotationItems, function(possibleParent, parentIndex) {
+                        if (possibleParent.children && _.includes(possibleParent.children, item)) {
+                            this.deselectAnnotation(parentIndex)
+                            return false
+                        }
+                    }.bind(this))
+                }
             }
             this.state.selectedAnnotationItems.push(item)
             this.state.selectedAnnotationValues.push(this.state.annotations[item.name.toLowerCase()])
         }
 
         this.setState({
-            openAnnotationItem: openItem ? item : closeItem ? null : this.state.openAnnotationItem
+            openAnnotationItem: openItem ? item : closeItem ? null : this.state.openAnnotationItem,
+            selectedAnnotationItems: this.state.selectedAnnotationItems
         })
 
         if (setDimensions) {
@@ -516,6 +560,7 @@ var ScatterApp = Radium(React.createClass({
                     return false
                 }
             })
+
             var desc = (<span style={styles.annotationItemQuantity}>{!!item.numAnnotated ? item.numAnnotated : ''}</span>)
             if (this.state.highlights && this.state.highlights[item.name.toLowerCase()]) {
                 var highlight = this.state.highlights[item.name.toLowerCase()]
@@ -525,11 +570,13 @@ var ScatterApp = Radium(React.createClass({
                     color: 'rgb(' + highlight.color.r + ', ' + highlight.color.g + ', ' + highlight.color.b + ')'
                 }
             }
+            
             var spreadStyle = styles.spread
             if (this.state.spreadAnnotationItem === item) {
                 spreadStyle = _.clone(styles.spread)
                 spreadStyle.color = '#ffffff'
             }
+            
             return (
                     <div key={item.name}>
                     {config.data.spread ? (<Spread width={10} height={10} style={spreadStyle} dimensions={item.dimensions} maxDimensions={config.data.numDimensions}

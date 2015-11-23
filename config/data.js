@@ -4,19 +4,18 @@ var data = {
     dir: '/data/example',
     // data type can be 'buffer' or 'json'
     type: 'buffer',
-    // file name prefix, files go 'prefix1.buffer' (or 'prefix1.json'), 'prefix2.buffer' etc.
-    prefix: 'PC',
     // number of dimensions available in the ui, equal or smaller than the number of data files
     numDimensions: 6,
     // the scatterplot will be positioned differently if data only contains positive numbers
+    // TODO determine automatically from data
     onlyPositive: false,
     // whether data contains most informative dimensions
     spread: false,
     
     // leave annotationDir empty for no annotations
-    annotationDir: 'data/example_annotations_binary',
+    annotationDir: 'data/example_annotations',
     // annotation type can be 'buffer' or 'json'
-    annotationType: 'buffer',
+    annotationType: 'json',
 }
 
 if (typeof module === 'object' && module.exports) {

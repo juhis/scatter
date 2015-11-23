@@ -72,6 +72,11 @@ server.post('/upload', function (req, res, next) {
     }
 })
 
+server.on('error', function(err) {
+    console.error('Cannot start server:')
+    console.error(err)
+})
+
 server.listen(config.port, function () {
     console.log('%s listening at %s', server.name, server.url)
     console.log('open http://localhost:%d in your browser (Chrome recommended for speed)', config.port)

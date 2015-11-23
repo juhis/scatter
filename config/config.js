@@ -18,16 +18,16 @@ var config = {
     defaultTransitionSpeed: 50,
     defaultHighlightThreshold: 5,
 
-    continuousAnnotationScale: 0.35,
+    continuousAnnotationScale: 0.25,
 
     colorsAnnotated: [
         {
-            h: 0.54,
+            h: 0.24,
             s: 0.9,
             l: 0.5
         },
         {
-            h: 0.25,
+            h: 0.55,
             s: 0.9,
             l: 0.5
         },
