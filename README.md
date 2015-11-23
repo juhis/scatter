@@ -7,8 +7,10 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
 
 1. Clone or download the repository
 2. Start the web server:
+
    ```
-   node server/server.js
+   npm install
+   npm start
    ```
    
    Or, if you don't have node installed:
@@ -26,17 +28,17 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
    ```
    npm install
    ```
+
+2. Make a build each time a source file changes:
+
+   ```
+   npm run build:watch
+   ```
+
+   Or, to make a single build:
    
-2. Install watchify for bundling the files:
-
    ```
-   npm install -g watchify
-   ```
-
-3. Run watchify to recreate the bundle file each time a source file changes:
-
-   ```
-   watchify -t reactify -o build/bundle.js assets/jsx/App.js -v
+   npm run build
    ```
 
 ### Hotkeys
