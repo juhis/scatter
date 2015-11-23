@@ -3,7 +3,12 @@ Fast 3D visualization of large, high-dimensional datasets in the browser
 
 Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github.io/react) and [restify](https://github.com/restify/node-restify).
 
-### Running
+* [Running](#running)
+* [Developing](#developing)
+* [Hotkeys](#hotkeys)
+* [Screenshot](#screenshot)
+
+### <a name="running"></a> Running
 
 1. Clone or download the repository
 2. Start the web server:
@@ -21,7 +26,7 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
 3. Open localhost:8080 in a browser
 4. See config/data.js to use your own dataset and config/config.js for other configuration
 
-### Developing
+### <a name="developing"></a> Developing
 
 1. Install required npm packages:
 
@@ -41,7 +46,7 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
    npm run build
    ```
 
-### Hotkeys
+### <a name="hotkeys"></a> Hotkeys
 
 | Key   | Behavior                 |
 | ----- | ------------------------ |
@@ -53,5 +58,7 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
 | p     | toggle projections       |
 | r     | toggle rotation          |
 | x     | toggle axes              |
+
+### <a name="screenshot"></a> Screenshot
 
 ![screenshot](https://raw.githubusercontent.com/juhis/scatter/master/assets/images/screenshot.png)
