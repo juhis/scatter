@@ -22,11 +22,22 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
 ### Developing
 
 1. Install required npm packages:
-  * npm install
+
+   ```
+   npm install
+   ```
+   
 2. Install watchify for bundling the files:
-  * npm install -g watchify
+
+   ```
+   npm install -g watchify
+   ```
+
 3. Run watchify to recreate the bundle file each time a source file changes:
-  * watchify -t reactify -o build/bundle.js assets/jsx/App.js -v
+
+   ```
+   watchify -t reactify -o build/bundle.js assets/jsx/App.js -v
+   ```
 
 ### Hotkeys
 
