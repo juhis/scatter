@@ -1,40 +1,44 @@
 {
-  "name": "scatter",
-  "version": "0.0.1",
-  "description": "Fast 3D visualization of large, high-dimensional datasets",
-  "main": "index.js",
-  "dependencies": {
-    "async": "^1.4.2",
-    "genstats": "0.0.1",
-    "history": "^1.12.1",
-    "lodash": "^3.10.1",
-    "radium": "^0.14.1",
-    "react": "^0.13.3",
-    "react-router": "^1.0.0-rc1",
-    "reactify": "^1.1.1",
-    "restify": "^4.0.3",
-    "split": "^1.0.0",
-    "superagent": "^1.4.0"
-  },
-  "devDependencies": {},
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/juhis/scatter.git"
-  },
-  "keywords": [
-    "scatterplot",
-    "visualization",
-    "webgl",
-    "big",
-    "data"
-  ],
-  "author": "Juha Karjalainen",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/juhis/scatter/issues"
-  },
-  "homepage": "https://github.com/juhis/scatter"
+    "name": "scatter",
+    "version": "0.0.1",
+    "description": "Fast 3D visualization of large, high-dimensional datasets",
+    "main": "index.js",
+    "dependencies": {
+        "async": "^1.4.2",
+        "genstats": "0.0.1",
+        "history": "^1.12.1",
+        "lodash": "^3.10.1",
+        "radium": "^0.14.1",
+        "react": "^0.13.3",
+        "react-router": "^1.0.0-rc1",
+        "reactify": "^1.1.1",
+        "restify": "^4.0.3",
+        "split": "^1.0.0",
+        "superagent": "^1.4.0",
+        "watchify": "^3.6.1"
+    },
+    "devDependencies": {},
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "node server/server.js",
+        "build:watch": "node node_modules/watchify/bin/cmd.js -t reactify -o build/bundle.js assets/jsx/App.js -v",
+        "build": "node node_modules/watchify/node_modules/browserify/bin/cmd.js -t reactify -o build/bundle.js assets/jsx/App.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/juhis/scatter.git"
+    },
+    "keywords": [
+        "scatterplot",
+        "visualization",
+        "webgl",
+        "big",
+        "data"
+    ],
+    "author": "Juha Karjalainen",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/juhis/scatter/issues"
+    },
+    "homepage": "https://github.com/juhis/scatter"
 }
