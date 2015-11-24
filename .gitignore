@@ -2,7 +2,8 @@
 npm-debug.log
 node_modules
 
-#config/data.js
+config/data-local.js
+config/config-local.js
 data/pc*
 
 server/uploads

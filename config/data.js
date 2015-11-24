@@ -18,7 +18,7 @@ var data = {
     spread: false,
     
     // leave annotationDir empty for no annotations
-    annotationDir: 'data/example_annotations',
+    annotationDir: '/data/example_annotations',
     // annotation type can be 'buffer' or 'json'
     // 'buffer' is preferred for large datasets as buffer files are smaller than json files
     annotationType: 'json',

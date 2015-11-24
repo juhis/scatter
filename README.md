@@ -10,7 +10,7 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
 
    ```
    npm install
-   npm start
+   npm start [port_number]
    ```
    
    Or, if you don't have node installed:
@@ -18,7 +18,7 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
    ````
    python -m SimpleHTTPServer
    ````
-3. Open localhost:8080 in a browser
+3. Open [http://localhost:8080](http://localhost:8080) in a browser
 4. See config/data.js to use your own dataset and config/config.js for other configuration
 
 ### Developing

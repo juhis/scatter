@@ -4,6 +4,11 @@ var restify = require('restify')
 var fs = require('fs')
 var config = require('../config/server.js')
 
+var port = config.port || 8080
+if (process.argv.length > 2) {
+    port = +process.argv[2]
+}
+
 var rootDir = process.cwd().substring(__dirname.length - 6) === 'server' ? '../' : './'
 console.log('serving from %s', rootDir)
 
@@ -77,9 +82,9 @@ server.on('error', function(err) {
     console.error(err)
 })
 
-server.listen(config.port, function () {
+server.listen(port, function () {
     console.log('%s listening at %s', server.name, server.url)
-    console.log('open http://localhost:%d in your browser (Chrome recommended for speed)', config.port)
+    console.log('open http://localhost:%d in your browser (Chrome recommended for speed)', port)
 })
 
 function saveImage(id, frame, png, callback) {

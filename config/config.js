@@ -1,6 +1,6 @@
 // scatter configuration
 //
-// see data.js for dataset config and sercer.js for server config
+// see data.js for dataset config and server.js for server config
 
 var config = {
 
