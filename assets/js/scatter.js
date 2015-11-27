@@ -9,7 +9,7 @@ var async = require('async')
 var superagent = require('superagent')
 
 var react
-var scene, legendScene, renderer
+var scene, legendScene, renderer, rendererWidth, rendererHeight
 var camera, projectionCameras, legendCamera, cameraControls
 var isAnimating = false, isRecording = false, animationId, savedFrames = []
 var targetHSL = {h: config.hueAnnotated, s: config.saturationAnnotated, l: 1}
@@ -334,8 +334,12 @@ function init(width, height) {
     renderer.gammaOutput = true
     renderer.setPixelRatio(window.devicePixelRatio)
     renderer.setSize(width, height)
+    rendererWidth = width
+    rendererHeight = height
     renderer.autoClear = false
 
+    console.log(renderer)
+    
     // CAMERAS
     
     camera = new THREE.PerspectiveCamera(45, width / (2/3 * height), 0.1, 100 * scale)
@@ -920,19 +924,19 @@ function raycast(e) {
 
 var Scatter = {
 
-    initialize: function(domElement, reactClass, width, height, dataX, dataY, dataZ, labels, config) {
+    initialize: function(domElement, reactClass, width, height, dataX, dataY, dataZ, labels, onlyPositive) {
 
         console.log('initializing scatterplot, data length: ' + dataX.length)
         react = reactClass
         init(width, height)
         //TODO
         //drawLegendPlane()
-        drawGrid(config.onlyPositive)
+        drawGrid(onlyPositive)
         drawAxes()
         drawTexts(labels)
-        fillScene(dataX, dataY, dataZ, config.onlyPositive)
+        fillScene(dataX, dataY, dataZ, onlyPositive)
 
-        if (config.onlyPositive === true) { // translate origo to the halfway point
+        if (onlyPositive === true) { // translate origo to the halfway point
             pointCloud.position.x = -scale
             pointCloud.position.y = -scale
             pointCloud.position.z = -scale
@@ -953,9 +957,9 @@ var Scatter = {
         renderer.setSize(width, height)
     },
     
-    setValues: function(axis, values, config) {
+    setValues: function(axis, values, onlyPositive) {
 
-        var multiplier = config.onlyPositive ? 4 : 2
+        var multiplier = onlyPositive ? 4 : 2
         for (var i = 0; i < pointCloud.geometry.attributes.size.count; i++) {
             destinations[i] = {
                 x: axis === 'x' ? multiplier * scale * (values[i] / 65536 - 0.5) : destinations[i] ? destinations[i].x : null,

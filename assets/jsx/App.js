@@ -108,7 +108,7 @@ var ScatterApp = Radium(React.createClass({
                                        this.state.pointData[dimensions[1]],
                                        this.state.pointData[dimensions[2]],
                                        this.state.labels,
-                                       config.data)
+                                       this.state.onlyPositive)
                     this.updateAnnotationColors(scatter.getAnnotationColorsRGBString())
                     window.addEventListener('resize', this.handleResize);
                     this.setState({
@@ -139,11 +139,7 @@ var ScatterApp = Radium(React.createClass({
             .accept('json')
             .end(function(err, res) {
                 if (err) {
-                    if (err.message === 'Not Found') {
-                        return callback(null)
-                    } else {
-                        return callback(err)
-                    }
+                    return callback(err)
                 } else {
                     this.setState({
                         labels: res.body
@@ -155,6 +151,8 @@ var ScatterApp = Radium(React.createClass({
 
     loadData: function(dimensions, callback) {
 
+        var min = Number.MAX_VALUE
+        
         async.eachSeries(dimensions, function(dimension, cb) {
             if (config.data.type === 'buffer') {
                 var filename = config.data.dir + '/' + dimension + '.buffer'
@@ -169,6 +167,9 @@ var ScatterApp = Radium(React.createClass({
                             return cb(err)
                         } else {
                             var arr = new Uint16Array(res.xhr.response)
+                            for (var i = 0; i < arr.length; i++) {
+                                min = Math.min(min, arr[i])
+                            }
                             this.state.pointData[dimension] = arr
                             return cb(null)
                         }
@@ -194,7 +195,8 @@ var ScatterApp = Radium(React.createClass({
                                         arr[i] = ((data.values[i] - data.min) / (data.max - data.min) + 1) / 2 * 65535
                                     } else {
                                         arr[i] = (data.values[i] / data.max + 1) / 2 * 65535
-                                    }                                        
+                                    }
+                                    min = Math.min(min, arr[i])
                                 }
                                 this.state.pointData[data.index] = arr
                                 return cb(null)
@@ -207,9 +209,12 @@ var ScatterApp = Radium(React.createClass({
         }.bind(this), function(err) {
             if (err) return callback(err)
             else {
+                this.setState({
+                    onlyPositive: min >= 32767
+                })
                 return callback(null)
             }
-        })
+        }.bind(this))
     },
 
     loadAnnotationItems: function(callback) {
@@ -515,7 +520,7 @@ var ScatterApp = Radium(React.createClass({
                     <span style={{cursor: 'pointer', paddingRight: '10px'}} onClick={this.setDimension.bind(null, a, (i + 1))}>{a.toUpperCase()}</span>
                     <Arrow direction='left' onClick={this.setDimension.bind(null, a, this.state[a] - 1)} disabled={this.state[a] - 1 < 1} />
                     <span style={{padding: '0 5px'}}>{this.state[a]}</span>
-                    <Arrow direction='right' onClick={this.setDimension.bind(null, a, this.state[a] + 1)} disabled={this.state[a] + 1 > (config.data.numDimensions || 10) || this.state[a] < 1} />
+                    <Arrow direction='right' onClick={this.setDimension.bind(null, a, this.state[a] + 1)} disabled={this.state[a] + 1 > (this.state.labels && this.state.labels.length || 10) || this.state[a] < 1} />
                 </div>
             )
         }, this)
@@ -545,7 +550,7 @@ var ScatterApp = Radium(React.createClass({
                             <div
                         key={child.name}
                         style={[styles.annotationItem, styles.annotationItemChild, dynamicStyle]}
-                        onClick={this.onAnnotationClick.bind(null, child, true)}>
+                        onClick={this.onAnnotationClick.bind(null, child, true, false)}>
                             {child.name.toUpperCase().replace(/_/g, ' ')}
                             <span style={styles.annotationItemQuantity}>{desc}</span>
                         </div>
@@ -579,7 +584,7 @@ var ScatterApp = Radium(React.createClass({
             
             return (
                     <div key={item.name}>
-                    {config.data.spread ? (<Spread width={10} height={10} style={spreadStyle} dimensions={item.dimensions} maxDimensions={config.data.numDimensions}
+                    {config.data.spread ? (<Spread width={10} height={10} style={spreadStyle} dimensions={item.dimensions} maxDimensions={this.state.labels && this.state.labels.length}
                                            onClick={this.onAnnotationClick.bind(null, item, false, true)} />) : null}
                     <div style={[styles.annotationItem, dynamicStyle]} onClick={this.onAnnotationClick.bind(null, item, false, false)}>
                     <div>{item.name.toUpperCase().replace(/_/g, ' ')}

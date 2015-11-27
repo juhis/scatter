@@ -10,7 +10,7 @@ var async = require('async')
 var superagent = require('superagent')
 
 var react
-var scene, legendScene, renderer
+var scene, legendScene, renderer, rendererWidth, rendererHeight
 var camera, projectionCameras, legendCamera, cameraControls
 var isAnimating = false, isRecording = false, animationId, savedFrames = []
 var targetHSL = {h: config.hueAnnotated, s: config.saturationAnnotated, l: 1}
@@ -335,8 +335,12 @@ function init(width, height) {
     renderer.gammaOutput = true
     renderer.setPixelRatio(window.devicePixelRatio)
     renderer.setSize(width, height)
+    rendererWidth = width
+    rendererHeight = height
     renderer.autoClear = false
 
+    console.log(renderer)
+    
     // CAMERAS
     
     camera = new THREE.PerspectiveCamera(45, width / (2/3 * height), 0.1, 100 * scale)
@@ -921,19 +925,19 @@ function raycast(e) {
 
 var Scatter = {
 
-    initialize: function(domElement, reactClass, width, height, dataX, dataY, dataZ, labels, config) {
+    initialize: function(domElement, reactClass, width, height, dataX, dataY, dataZ, labels, onlyPositive) {
 
         console.log('initializing scatterplot, data length: ' + dataX.length)
         react = reactClass
         init(width, height)
         //TODO
         //drawLegendPlane()
-        drawGrid(config.onlyPositive)
+        drawGrid(onlyPositive)
         drawAxes()
         drawTexts(labels)
-        fillScene(dataX, dataY, dataZ, config.onlyPositive)
+        fillScene(dataX, dataY, dataZ, onlyPositive)
 
-        if (config.onlyPositive === true) { // translate origo to the halfway point
+        if (onlyPositive === true) { // translate origo to the halfway point
             pointCloud.position.x = -scale
             pointCloud.position.y = -scale
             pointCloud.position.z = -scale
@@ -954,9 +958,9 @@ var Scatter = {
         renderer.setSize(width, height)
     },
     
-    setValues: function(axis, values, config) {
+    setValues: function(axis, values, onlyPositive) {
 
-        var multiplier = config.onlyPositive ? 4 : 2
+        var multiplier = onlyPositive ? 4 : 2
         for (var i = 0; i < pointCloud.geometry.attributes.size.count; i++) {
             destinations[i] = {
                 x: axis === 'x' ? multiplier * scale * (values[i] / 65536 - 0.5) : destinations[i] ? destinations[i].x : null,
@@ -1114,7 +1118,7 @@ var ScatterApp = Radium(React.createClass({
                                        this.state.pointData[dimensions[1]],
                                        this.state.pointData[dimensions[2]],
                                        this.state.labels,
-                                       config.data)
+                                       this.state.onlyPositive)
                     this.updateAnnotationColors(scatter.getAnnotationColorsRGBString())
                     window.addEventListener('resize', this.handleResize);
                     this.setState({
@@ -1145,11 +1149,7 @@ var ScatterApp = Radium(React.createClass({
             .accept('json')
             .end(function(err, res) {
                 if (err) {
-                    if (err.message === 'Not Found') {
-                        return callback(null)
-                    } else {
-                        return callback(err)
-                    }
+                    return callback(err)
                 } else {
                     this.setState({
                         labels: res.body
@@ -1161,6 +1161,8 @@ var ScatterApp = Radium(React.createClass({
 
     loadData: function(dimensions, callback) {
 
+        var min = Number.MAX_VALUE
+        
         async.eachSeries(dimensions, function(dimension, cb) {
             if (config.data.type === 'buffer') {
                 var filename = config.data.dir + '/' + dimension + '.buffer'
@@ -1175,6 +1177,9 @@ var ScatterApp = Radium(React.createClass({
                             return cb(err)
                         } else {
                             var arr = new Uint16Array(res.xhr.response)
+                            for (var i = 0; i < arr.length; i++) {
+                                min = Math.min(min, arr[i])
+                            }
                             this.state.pointData[dimension] = arr
                             return cb(null)
                         }
@@ -1200,7 +1205,8 @@ var ScatterApp = Radium(React.createClass({
                                         arr[i] = ((data.values[i] - data.min) / (data.max - data.min) + 1) / 2 * 65535
                                     } else {
                                         arr[i] = (data.values[i] / data.max + 1) / 2 * 65535
-                                    }                                        
+                                    }
+                                    min = Math.min(min, arr[i])
                                 }
                                 this.state.pointData[data.index] = arr
                                 return cb(null)
@@ -1213,9 +1219,12 @@ var ScatterApp = Radium(React.createClass({
         }.bind(this), function(err) {
             if (err) return callback(err)
             else {
+                this.setState({
+                    onlyPositive: min >= 32767
+                })
                 return callback(null)
             }
-        })
+        }.bind(this))
     },
 
     loadAnnotationItems: function(callback) {
@@ -1521,7 +1530,7 @@ var ScatterApp = Radium(React.createClass({
                     React.createElement("span", {style: {cursor: 'pointer', paddingRight: '10px'}, onClick: this.setDimension.bind(null, a, (i + 1))}, a.toUpperCase()), 
                     React.createElement(Arrow, {direction: "left", onClick: this.setDimension.bind(null, a, this.state[a] - 1), disabled: this.state[a] - 1 < 1}), 
                     React.createElement("span", {style: {padding: '0 5px'}}, this.state[a]), 
-                    React.createElement(Arrow, {direction: "right", onClick: this.setDimension.bind(null, a, this.state[a] + 1), disabled: this.state[a] + 1 > (config.data.numDimensions || 10) || this.state[a] < 1})
+                    React.createElement(Arrow, {direction: "right", onClick: this.setDimension.bind(null, a, this.state[a] + 1), disabled: this.state[a] + 1 > (this.state.labels && this.state.labels.length || 10) || this.state[a] < 1})
                 )
             )
         }, this)
@@ -1551,7 +1560,7 @@ var ScatterApp = Radium(React.createClass({
                             React.createElement("div", {
                         key: child.name, 
                         style: [styles.annotationItem, styles.annotationItemChild, dynamicStyle], 
-                        onClick: this.onAnnotationClick.bind(null, child, true)}, 
+                        onClick: this.onAnnotationClick.bind(null, child, true, false)}, 
                             child.name.toUpperCase().replace(/_/g, ' '), 
                             React.createElement("span", {style: styles.annotationItemQuantity}, desc)
                         )
@@ -1585,7 +1594,7 @@ var ScatterApp = Radium(React.createClass({
             
             return (
                     React.createElement("div", {key: item.name}, 
-                    config.data.spread ? (React.createElement(Spread, {width: 10, height: 10, style: spreadStyle, dimensions: item.dimensions, maxDimensions: config.data.numDimensions, 
+                    config.data.spread ? (React.createElement(Spread, {width: 10, height: 10, style: spreadStyle, dimensions: item.dimensions, maxDimensions: this.state.labels && this.state.labels.length, 
                                            onClick: this.onAnnotationClick.bind(null, item, false, true)})) : null, 
                     React.createElement("div", {style: [styles.annotationItem, dynamicStyle], onClick: this.onAnnotationClick.bind(null, item, false, false)}, 
                     React.createElement("div", null, item.name.toUpperCase().replace(/_/g, ' '), 
