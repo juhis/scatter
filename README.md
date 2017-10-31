@@ -11,32 +11,34 @@ Made with [three.js](http://threejs.org), WebGL, [React](https://facebook.github
 
 ### <a name="running"></a> Running
 
-1.    Clone the repository:
+1. Clone the repository:
 
-      ```
-      git clone https://github.com/juhis/scatter.git
-      ```
+   ```
+   git clone https://github.com/juhis/scatter.git
+   ```
 
-      or download the zip file from GitHub and unzip
+   or download the zip file from GitHub and unzip
 
-2.1   To run with the example data:
+2. Run:
 
-      ```
-      cd scatter
-      python -m SimpleHTTPServer 8080
-      ```
-      
-      Any other web server will also do
+   To run with the example data:
+
+   ```
+   cd scatter
+   python -m SimpleHTTPServer 8080
+   ```
+
+   (Any other web server will also do)
    
-2.2   Or, to run with Node (this is needed when using your own data):
+   Or, to run with Node (this is needed when using your own data):
 
-      ```
-      cd scatter
-      npm install
-      npm start
-      ```
+   ```
+   cd scatter
+   npm install
+   npm start
+   ```
       
-      Node (including npm) can be downloaded [here](https://nodejs.org/en/download)
+   Node (including npm) can be downloaded [here](https://nodejs.org/en/download)
 
 3. Open [http://localhost:8080](http://localhost:8080) in a browser (Chrome is the fastest one)
 
@@ -48,21 +50,21 @@ If you have issues or suggestions, please e-mail me at juha dot karjalainen at i
 
 1. Install required npm packages:
 
-   ```
-   npm install
-   ```
+```
+npm install
+```
 
 2. Start the web server:
 
-   ```
-   npm start [port_number]
-   ```
+```
+npm start [port_number]
+```
 
 3. Make a build each time a source file changes:
 
-   ```
-   npm run build:watch
-   ```
+```
+npm run build:watch
+```
 
 ### <a name="hotkeys"></a> Hotkeys
 
