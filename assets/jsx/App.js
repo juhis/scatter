@@ -210,7 +210,7 @@ var ScatterApp = Radium(React.createClass({
             if (err) return callback(err)
             else {
                 this.setState({
-                    onlyPositive: min >= 32767
+                    onlyPositive: true//min >= 32767
                 })
                 return callback(null)
             }
@@ -241,7 +241,7 @@ var ScatterApp = Radium(React.createClass({
                         })
                     } else {
                         this.setState({
-                            menuItems: res.body
+                            menuItems: _.sortBy(res.body, 'name')
                         })
                     }
                     return callback(error, res.body)
@@ -450,7 +450,9 @@ var ScatterApp = Radium(React.createClass({
         var openItem = false, closeItem = false
         var index = this.state.selectedAnnotationItems.indexOf(item)
         if (index > -1) { // item is currently selected
-            this.deselectAnnotation(index)
+            if (!setDimensions) {
+                this.deselectAnnotation(index)
+            }
             if (this.state.openAnnotationItem === item) { // close item
                 if (item.children && item.children.length > 0) { // deselect selected children
                     _.forEach(item.children, function(child) {

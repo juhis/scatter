@@ -1,0 +1,755 @@
+[
+    {
+        "name": "Esophagus",
+        "type": "binary",
+        "numAnnotated": 60,
+        "children": [],
+        "dimensions": [
+            3,
+            92,
+            4
+        ]
+    },
+    {
+        "name": "Lung",
+        "type": "binary",
+        "numAnnotated": 349,
+        "children": [],
+        "dimensions": [
+            3,
+            43,
+            59
+        ]
+    },
+    {
+        "name": "Liver",
+        "type": "binary",
+        "numAnnotated": 141,
+        "children": [],
+        "dimensions": [
+            3,
+            13,
+            39
+        ]
+    },
+    {
+        "name": "Pancreas",
+        "type": "binary",
+        "numAnnotated": 355,
+        "children": [],
+        "dimensions": [
+            14,
+            34,
+            38
+        ]
+    },
+    {
+        "name": "Brain",
+        "type": "binary",
+        "numAnnotated": 1281,
+        "children": [
+            {
+                "name": "Prefrontal cortex",
+                "type": "binary",
+                "numAnnotated": 297
+            },
+            {
+                "name": "Forebrain",
+                "type": "binary",
+                "numAnnotated": 21
+            },
+            {
+                "name": "Temporal lobe",
+                "type": "binary",
+                "numAnnotated": 10
+            },
+            {
+                "name": "Frontal lobe",
+                "type": "binary",
+                "numAnnotated": 16
+            },
+            {
+                "name": "Frontal cortex",
+                "type": "binary",
+                "numAnnotated": 48
+            },
+            {
+                "name": "Cerebellum",
+                "type": "binary",
+                "numAnnotated": 30
+            },
+            {
+                "name": "Occipital lobe",
+                "type": "binary",
+                "numAnnotated": 1
+            },
+            {
+                "name": "Cerebral cortex",
+                "type": "binary",
+                "numAnnotated": 16
+            },
+            {
+                "name": "Hippocampus",
+                "type": "binary",
+                "numAnnotated": 1
+            },
+            {
+                "name": "Midbrain",
+                "type": "binary",
+                "numAnnotated": 4
+            },
+            {
+                "name": "Temporal gyrus",
+                "type": "binary",
+                "numAnnotated": 18
+            }
+        ],
+        "dimensions": [
+            1,
+            2,
+            3
+        ]
+    },
+    {
+        "name": "Breast",
+        "type": "binary",
+        "numAnnotated": 32,
+        "children": [],
+        "dimensions": [
+            43,
+            1,
+            56
+        ]
+    },
+    {
+        "name": "Blood",
+        "type": "binary",
+        "numAnnotated": 3003,
+        "children": [
+            {
+                "name": "Cord blood",
+                "type": "binary",
+                "numAnnotated": 417
+            },
+            {
+                "name": "Whole blood",
+                "type": "binary",
+                "numAnnotated": 1126
+            },
+            {
+                "name": "T-cell",
+                "type": "binary",
+                "numAnnotated": 115
+            },
+            {
+                "name": "PBMC",
+                "type": "binary",
+                "numAnnotated": 280
+            },
+            {
+                "name": "NK-cell",
+                "type": "binary",
+                "numAnnotated": 12
+            },
+            {
+                "name": "Granulocyte",
+                "type": "binary",
+                "numAnnotated": 56
+            },
+            {
+                "name": "Monocyte",
+                "type": "binary",
+                "numAnnotated": 402
+            },
+            {
+                "name": "B-cell",
+                "type": "binary",
+                "numAnnotated": 115
+            },
+            {
+                "name": "Neutrophil",
+                "type": "binary",
+                "numAnnotated": 17
+            },
+            {
+                "name": "Platelet",
+                "type": "binary",
+                "numAnnotated": 9
+            },
+            {
+                "name": "Myeloblast",
+                "type": "binary",
+                "numAnnotated": 0
+            },
+            {
+                "name": "Erythroblast",
+                "type": "binary",
+                "numAnnotated": 27
+            }
+        ],
+        "dimensions": [
+            1,
+            6,
+            8
+        ]
+    },
+    {
+        "name": "Prostate",
+        "type": "binary",
+        "numAnnotated": 135,
+        "children": [],
+        "dimensions": [
+            1,
+            89,
+            76
+        ]
+    },
+    {
+        "name": "Epithelial tissue",
+        "type": "binary",
+        "numAnnotated": 201,
+        "children": [],
+        "dimensions": [
+            2,
+            1,
+            3
+        ]
+    },
+    {
+        "name": "Skin",
+        "type": "binary",
+        "numAnnotated": 866,
+        "children": [
+            {
+                "name": "Keratinocyte",
+                "type": "binary",
+                "numAnnotated": 114
+            },
+            {
+                "name": "Melanocyte",
+                "type": "binary",
+                "numAnnotated": 36
+            }
+        ],
+        "dimensions": [
+            1,
+            81,
+            11
+        ]
+    },
+    {
+        "name": "Adipose tissue",
+        "type": "binary",
+        "numAnnotated": 276,
+        "children": [],
+        "dimensions": [
+            3,
+            49,
+            35
+        ]
+    },
+    {
+        "name": "Intestine",
+        "type": "binary",
+        "numAnnotated": 134,
+        "children": [],
+        "dimensions": [
+            15,
+            3,
+            17
+        ]
+    },
+    {
+        "name": "Kidney",
+        "type": "binary",
+        "numAnnotated": 99,
+        "children": [],
+        "dimensions": [
+            67,
+            76,
+            57
+        ]
+    },
+    {
+        "name": "Bone marrow",
+        "type": "binary",
+        "numAnnotated": 114,
+        "children": [],
+        "dimensions": [
+            1,
+            40,
+            53
+        ]
+    },
+    {
+        "name": "Muscle",
+        "type": "binary",
+        "numAnnotated": 447,
+        "children": [],
+        "dimensions": [
+            3,
+            1,
+            4
+        ]
+    },
+    {
+        "name": "Placenta",
+        "type": "binary",
+        "numAnnotated": 111,
+        "children": [],
+        "dimensions": [
+            23,
+            46,
+            65
+        ]
+    },
+    {
+        "name": "Thyroid",
+        "type": "binary",
+        "numAnnotated": 60,
+        "children": [],
+        "dimensions": [
+            95,
+            138,
+            132
+        ]
+    },
+    {
+        "name": "Heart",
+        "type": "binary",
+        "numAnnotated": 91,
+        "children": [],
+        "dimensions": [
+            1,
+            8,
+            33
+        ]
+    },
+    {
+        "name": "Ovary",
+        "type": "binary",
+        "numAnnotated": 24,
+        "children": [],
+        "dimensions": [
+            78,
+            69,
+            105
+        ]
+    },
+    {
+        "name": "Stomach",
+        "type": "binary",
+        "numAnnotated": 19,
+        "children": [],
+        "dimensions": [
+            2,
+            63,
+            50
+        ]
+    },
+    {
+        "name": "Adrenal gland",
+        "type": "binary",
+        "numAnnotated": 23,
+        "children": [],
+        "dimensions": [
+            97,
+            144,
+            142
+        ]
+    },
+    {
+        "name": "Testis",
+        "type": "binary",
+        "numAnnotated": 14,
+        "children": [],
+        "dimensions": [
+            75,
+            81,
+            198
+        ]
+    },
+    {
+        "name": "Gall bladder",
+        "type": "binary",
+        "numAnnotated": 8,
+        "children": []
+    },
+    {
+        "name": "Spleen",
+        "type": "binary",
+        "numAnnotated": 21,
+        "children": [],
+        "dimensions": [
+            20,
+            171,
+            174
+        ]
+    },
+    {
+        "name": "Bladder",
+        "type": "binary",
+        "numAnnotated": 68,
+        "children": [],
+        "dimensions": [
+            63,
+            146,
+            49
+        ]
+    },
+    {
+        "name": "Thymus",
+        "type": "binary",
+        "numAnnotated": 9,
+        "children": []
+    },
+    {
+        "name": "Cell lines",
+        "type": "binary",
+        "numAnnotated": 8431,
+        "children": [
+            {
+                "name": "MCF7",
+                "type": "binary",
+                "numAnnotated": 577,
+                "dimensions": [
+                    1,
+                    2,
+                    16
+                ]
+            },
+            {
+                "name": "HEK293",
+                "type": "binary",
+                "numAnnotated": 458,
+                "dimensions": [
+                    2,
+                    1,
+                    23
+                ]
+            },
+            {
+                "name": "H1",
+                "type": "binary",
+                "numAnnotated": 1347,
+                "dimensions": [
+                    3,
+                    12,
+                    8
+                ]
+            },
+            {
+                "name": "HEPG2",
+                "type": "binary",
+                "numAnnotated": 228,
+                "dimensions": [
+                    23,
+                    35,
+                    37
+                ]
+            },
+            {
+                "name": "HCT116",
+                "type": "binary",
+                "numAnnotated": 284,
+                "dimensions": [
+                    31,
+                    2,
+                    28
+                ]
+            },
+            {
+                "name": "A549",
+                "type": "binary",
+                "numAnnotated": 232,
+                "dimensions": [
+                    50,
+                    47,
+                    77
+                ]
+            },
+            {
+                "name": "HELA",
+                "type": "binary",
+                "numAnnotated": 400,
+                "dimensions": [
+                    2,
+                    29,
+                    35
+                ]
+            },
+            {
+                "name": "MDAMB231",
+                "type": "binary",
+                "numAnnotated": 187,
+                "dimensions": [
+                    1,
+                    2,
+                    29
+                ]
+            },
+            {
+                "name": "K562",
+                "type": "binary",
+                "numAnnotated": 240,
+                "dimensions": [
+                    20,
+                    26,
+                    32
+                ]
+            },
+            {
+                "name": "H9",
+                "type": "binary",
+                "numAnnotated": 147,
+                "dimensions": [
+                    118,
+                    189,
+                    174
+                ]
+            },
+            {
+                "name": "LNCAP",
+                "type": "binary",
+                "numAnnotated": 116,
+                "dimensions": [
+                    39,
+                    32,
+                    33
+                ]
+            },
+            {
+                "name": "MCF10A",
+                "type": "binary",
+                "numAnnotated": 186,
+                "dimensions": [
+                    1,
+                    2,
+                    70
+                ]
+            },
+            {
+                "name": "293T",
+                "type": "binary",
+                "numAnnotated": 96,
+                "dimensions": [
+                    2,
+                    14,
+                    13
+                ]
+            },
+            {
+                "name": "IMR90",
+                "type": "binary",
+                "numAnnotated": 128,
+                "dimensions": [
+                    1,
+                    56,
+                    3
+                ]
+            },
+            {
+                "name": "HUVEC",
+                "type": "binary",
+                "numAnnotated": 127,
+                "dimensions": [
+                    22,
+                    20,
+                    23
+                ]
+            },
+            {
+                "name": "HMEC",
+                "type": "binary",
+                "numAnnotated": 129,
+                "dimensions": [
+                    1,
+                    10,
+                    14
+                ]
+            },
+            {
+                "name": "GM12878",
+                "type": "binary",
+                "numAnnotated": 45,
+                "dimensions": [
+                    8,
+                    1,
+                    3
+                ]
+            },
+            {
+                "name": "SKNSH",
+                "type": "binary",
+                "numAnnotated": 30,
+                "dimensions": [
+                    79,
+                    105,
+                    104
+                ]
+            },
+            {
+                "name": "JURKAT",
+                "type": "binary",
+                "numAnnotated": 68,
+                "dimensions": [
+                    23,
+                    68,
+                    27
+                ]
+            },
+            {
+                "name": "RUES2",
+                "type": "binary",
+                "numAnnotated": 18,
+                "dimensions": [
+                    1,
+                    11,
+                    2
+                ]
+            },
+            {
+                "name": "CRL2097",
+                "type": "binary",
+                "numAnnotated": 1
+            },
+            {
+                "name": "OCILY19",
+                "type": "binary",
+                "numAnnotated": 1
+            },
+            {
+                "name": "IMR32",
+                "type": "binary",
+                "numAnnotated": 16,
+                "dimensions": [
+                    30,
+                    2,
+                    136
+                ]
+            }
+        ]
+    },
+    {
+        "name": "Cancer sites",
+        "type": "binary",
+        "numAnnotated": 4927,
+        "children": [
+            {
+                "name": "Pancreas_cancer",
+                "type": "binary",
+                "numAnnotated": 27,
+                "dimensions": [
+                    72,
+                    87,
+                    73
+                ]
+            },
+            {
+                "name": "Breast_cancer",
+                "type": "binary",
+                "numAnnotated": 785,
+                "dimensions": [
+                    19,
+                    1,
+                    4
+                ]
+            },
+            {
+                "name": "Prostate_cancer",
+                "type": "binary",
+                "numAnnotated": 280,
+                "dimensions": [
+                    36,
+                    4,
+                    32
+                ]
+            },
+            {
+                "name": "Neuroblastoma_cancer",
+                "type": "binary",
+                "numAnnotated": 22
+            },
+            {
+                "name": "Blood_cancer",
+                "type": "binary",
+                "numAnnotated": 1433,
+                "dimensions": [
+                    1,
+                    4,
+                    5
+                ]
+            },
+            {
+                "name": "Skin_cancer",
+                "type": "binary",
+                "numAnnotated": 254,
+                "dimensions": [
+                    26,
+                    17,
+                    30
+                ]
+            },
+            {
+                "name": "Lung_cancer",
+                "type": "binary",
+                "numAnnotated": 160,
+                "dimensions": [
+                    54,
+                    75,
+                    19
+                ]
+            },
+            {
+                "name": "Cervix_cancer",
+                "type": "binary",
+                "numAnnotated": 28
+            },
+            {
+                "name": "Thyroid_cancer",
+                "type": "binary",
+                "numAnnotated": 29,
+                "dimensions": [
+                    97,
+                    20,
+                    173
+                ]
+            },
+            {
+                "name": "Colorectal_cancer",
+                "type": "binary",
+                "numAnnotated": 63,
+                "dimensions": [
+                    4,
+                    16,
+                    26
+                ]
+            },
+            {
+                "name": "Colon_cancer",
+                "type": "binary",
+                "numAnnotated": 54,
+                "dimensions": [
+                    2,
+                    1,
+                    31
+                ]
+            },
+            {
+                "name": "Rectal_cancer",
+                "type": "binary",
+                "numAnnotated": 1
+            },
+            {
+                "name": "Bone marrow_cancer",
+                "type": "binary",
+                "numAnnotated": 68,
+                "dimensions": [
+                    3,
+                    74,
+                    62
+                ]
+            }
+        ]
+    }
+]

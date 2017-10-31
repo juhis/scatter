@@ -330,6 +330,7 @@ function init(width, height) {
 
     // RENDERER
     renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true})
+    //renderer.setClearColor(new THREE.Color().setHSL(0.5, 0.5, 1))
     renderer.gammaInput = true
     renderer.gammaOutput = true
     renderer.setPixelRatio(window.devicePixelRatio)
@@ -338,7 +339,7 @@ function init(width, height) {
     rendererHeight = height
     renderer.autoClear = false
 
-    console.log(renderer)
+    //console.log(renderer)
     
     // CAMERAS
     

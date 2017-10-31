@@ -34,7 +34,8 @@ module.exports = Radium(React.createClass({
         this.state.ctx.fillStyle = (newProps.style && newProps.style.color) || 'rgb(' + config.defaultGray + ',' + config.defaultGray + ',' + config.defaultGray + ')'
         if (newProps.dimensions) {
             for (var i = 0, len = newProps.dimensions.length; i < len; i++) {
-                var loc = Math.min(newProps.dimensions[i] / (newProps.maxDimensions || 10), 1) * newProps.height - 1
+                //TODO magic number
+                var loc = Math.min(newProps.dimensions[i] / (newProps.maxDimensions || 343), 1) * newProps.height - 1
                 this.state.ctx.fillRect(i / len * newProps.width, loc, (i + 1) / len * newProps.width, newProps.height)
             }
         }
